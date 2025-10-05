@@ -1,0 +1,4 @@
+survos_new_api:
+  resource: '@SurvosJsonlBundle/config/routes.yaml'
+  # consider adding /admin to this route and securing it in security.yaml
+  prefix: '/jsonl'

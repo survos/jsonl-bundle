@@ -1,0 +1,10 @@
+<bg=green;fg=white>                </>
+<bg=green;fg=white> success        </>
+<bg=green;fg=white>                </>
+
+  * <fg=yellow>Next steps:</>
+    1. Go to https://dash.jsonl.net/account/api-key and get the main api key.  You should create at least one zone, as the bundle does not support creating zones.
+    2. bin/console jsonl:config <apiKey>, or set NEWS_API_KEY in your env.
+    3. bin/console jsonl:list
+    4. symfony open:local --path=/admin/jsonl
+

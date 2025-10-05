@@ -1,0 +1,45 @@
+{% extends "base.html.twig" %}
+
+{% block body %}
+    {% set columns = [
+        'image',
+        'title',
+        'publishedAt',
+        {name: 'dump', condition: app.request.get('debug', false)},
+    ] %}
+    <twig:simple_datatables
+            perPage="25"
+            :caller="_self"
+            :columns="columns"
+            :data="articles"
+    >
+        <twig:block name="image">
+            <img src="{{ row.urlToImage }}" alt="{{ row.title }}" style="max-width: 120px"/>
+        </twig:block>
+        <twig:block name="publishedAt">
+            {% guard filter ago %}
+                {{ row.publishedAt|ago }}
+            {% else %}
+                install timeago!
+                {{ row.publishedAt }}
+            {% endguard %}
+        </twig:block>
+        <twig:block name="dump">
+            {% guard function dump %}
+            {{ dump(row) }}
+            {% else %}
+                <pre>{{ row|json_encode }}</pre>
+            {% endguard %}
+        </twig:block>
+        <twig:block name="title">
+            <a href="{{ row.url }}" target="_blank">
+                {{ row.title }}
+            </a>
+            <br />
+            {{ row.description }}
+            <hr />
+            <span class="danger">{{ row.source.name }}</span>
+        </twig:block>
+
+    </twig:simple_datatables>
+{% endblock %}

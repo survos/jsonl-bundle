@@ -1,0 +1,35 @@
+{% extends "base.html.twig" %}
+
+{% block body %}
+
+    {% for lang in languages %}
+        <li>
+            {{ lang }}
+            {{ lang|language_name }}
+            <a href="{{ path('survos_news_api_sources', {language: lang}) }}">Sources</a>
+        </li>
+    {% endfor %}
+
+{#    {% set columns = [#}
+{#        'Id',#}
+{#        'Name',#}
+{#        'Region',#}
+{#        'FilesStored',#}
+{#        'StorageUsed',#}
+{#        'StorageHostname',#}
+{#        'DateModified'#}
+{#    ] %}#}
+{#    <twig:simple_datatables#}
+{#            perPage="20"#}
+{#            :caller="_self"#}
+{#            :columns="columns"#}
+{#            :data="languages"#}
+{#    >#}
+{#        <twig:block name="Name">#}
+{#            <a href="{{ path('survos_jsonl_zone', {id: row.Id, zoneName: row.Name}) }}">#}
+{#                {{ row.Name }}#}
+{#            </a>#}
+{#        </twig:block>#}
+
+{#    </twig:simple_datatables>#}
+{% endblock %}

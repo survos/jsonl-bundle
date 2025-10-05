@@ -1,0 +1,30 @@
+{
+  "name": "survos/jsonl-bundle",
+  "description": "Concurrent, ordered, resumable JSONL ingestion (reader/writer + fetch orchestration) for Symfony 7.3 / PHP 8.4",
+  "type": "symfony-bundle",
+  "license": "MIT",
+  "require": {
+    "php": "^8.4",
+    "symfony/http-client": "^7.1 || ^7.2 || ^7.3",
+    "symfony/console": "^7.1 || ^7.2 || ^7.3",
+    "psr/log": "^3.0",
+    "ext-zlib": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Survos\\JsonlBundle\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Survos\\JsonlBundle\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-main": "0.1-dev"
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

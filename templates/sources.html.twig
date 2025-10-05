@@ -1,0 +1,26 @@
+{% extends "base.html.twig" %}
+
+{% block body %}
+
+    {% set columns = [
+        'id',
+        'name',
+        'description',
+        'category',
+        'language',
+        'country',
+    ] %}
+    <twig:simple_datatables
+            perPage="25"
+            :caller="_self"
+            :columns="columns"
+            :data="sources"
+    >
+        <twig:block name="name">
+            <a href="{{ row.url }}" target="_blank">
+                {{ row.name }}
+            </a>
+        </twig:block>
+
+    </twig:simple_datatables>
+{% endblock %}

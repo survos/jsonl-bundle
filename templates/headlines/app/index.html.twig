@@ -1,0 +1,114 @@
+{% extends "base.html.twig" %}
+
+{% block body %}
+
+    {{ app.locale }}
+{% for locale, lang in languages %}
+    <a class="btn btn-primary" href="{{ path('app_load', {language: lang}) }}">
+        LOAD
+        {{ lang }}
+    </a>
+
+    |
+{% endfor %}
+
+    {% set _sc = 'locale_display' %}
+
+    <table  {{ stimulus_controller(_sc, {userLocale: app.request.locale}) }}>
+        <thead>
+        <tr>
+            <th>id</th>
+            <th>lang</th>
+            <th>headline</th>
+            <th>Source</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for article in articles %}
+            <tr>
+                <td>
+                    <code>{{ article.id }}</code>
+
+                <span data-locale-display-target="language"
+                      data-lang="{{ article.language }}">
+                    {{ article.language }}
+                </span>
+                </td>
+                <td>
+                    <b>
+                        {{ article.translate(app.locale).title }}
+                    </b>
+                    <i>
+                        {{ article.translate(app.locale).description }}
+                    </i>
+
+                </td>
+
+                <td>
+                    {{ article.translations|length }} translations
+                    {% if app.request.get('debug', false) %}
+                    <ol>
+                        {% for t in article.translations %}
+                            <li>
+                                <code>{{ t.locale }}</code>
+                                <b>{{ t.title }}</b>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                    {% endif %}
+                </td>
+
+
+            </tr>
+        {% endfor %}
+
+        </tbody>
+    </table>
+
+{% endblock %}
+
+{% block sources %}
+    <table  {{ stimulus_controller(_sc, {userLocale: app.request.locale}) }}>
+        <thead>
+        <tr>
+            <th>lang</th>
+            <th>country</th>
+            <th>name</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for source in sources %}
+            <tr>
+                <td>
+                    <code>{{ source.language }}</code>
+                </td>
+                <td>
+                <span data-locale-display-target="language"
+                      data-lang="{{ source.language }}">
+                    {{ source.language }}</span>
+
+                    <span data-locale-display-target="country"
+                          data-cc="{{ source.country }}">
+
+                </span>
+                    {{ source.country }}
+                </td>
+                <td>
+                    <b>
+                        {{ source.translate(app.locale).name }}
+                    </b>
+                    <i>
+                        {{ source.translate(app.locale).description }}
+                    </i>
+
+                </td>
+
+
+
+            </tr>
+        {% endfor %}
+
+        </tbody>
+    </table>
+
+{% endblock %}
