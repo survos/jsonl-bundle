@@ -7,15 +7,17 @@ use Survos\JsonlBundle\Contract\JsonlWriterInterface;
 
 /**
  * Append JSON-encoded rows to JSONL (.jsonl or .jsonl.gz).
- * Keeps a tiny boolean index file "<file>.idx.json" keyed by $tokenCode to skip duplicates.
+ * Maintains a boolean index "<file>.idx.json" keyed by $tokenCode to avoid duplicates.
  */
 final class JsonlWriter implements JsonlWriterInterface
 {
-    /** @var resource|\GdImage|\CurlHandle|\GMP|null */
+    /** @var resource|null */
     private $fh = null;
+
     private bool $gzip;
     private string $filename;
     private string $indexFile;
+
     /** @var array<string,bool> */
     private array $index = [];
 
@@ -24,28 +26,43 @@ final class JsonlWriter implements JsonlWriterInterface
         $this->filename  = $filename;
         $this->gzip      = str_ends_with($filename, '.gz');
         $this->indexFile = $filename . '.idx.json';
+    }
 
-        if (is_file($this->indexFile)) {
-            $decoded = json_decode((string)file_get_contents($this->indexFile), true);
-            $this->index = \is_array($decoded) ? $decoded : [];
+    public static function open(string $filename, bool $createDirs = true, int $dirPerms = 0o775): self
+    {
+        $self = new self($filename);
+
+        $dir = \dirname($filename);
+        if (!\is_dir($dir)) {
+            if ($createDirs) {
+                if (!\mkdir($dir, $dirPerms, true) && !\is_dir($dir)) {
+                    throw new \RuntimeException("Cannot create directory: $dir");
+                }
+            } else {
+                throw new \RuntimeException("Parent directory does not exist: $dir (pass \$createDirs=true to auto-create)");
+            }
         }
 
-        if ($this->gzip) {
+        // Preload index if present
+        if (\is_file($self->indexFile)) {
+            $decoded = \json_decode((string)\file_get_contents($self->indexFile), true);
+            $self->index = \is_array($decoded) ? $decoded : [];
+        }
+
+        // Open file handle
+        if ($self->gzip) {
             if (!\function_exists('gzopen')) {
                 throw new \RuntimeException('zlib not available: cannot write gzip file ' . $filename);
             }
-            $this->fh = @\gzopen($filename, 'ab9');
+            $self->fh = \gzopen($filename, 'ab9');
         } else {
-            $this->fh = @\fopen($filename, 'ab');
+            $self->fh = \fopen($filename, 'ab');
         }
-        if (!$this->fh) {
+        if (!$self->fh) {
             throw new \RuntimeException("Cannot open $filename for appending");
         }
-    }
 
-    public static function open(string $filename): self
-    {
-        return new self($filename);
+        return $self;
     }
 
     public function write(array $row, ?string $tokenCode = null): void
@@ -57,40 +74,53 @@ final class JsonlWriter implements JsonlWriterInterface
             $this->index[$tokenCode] = true;
         }
 
-        $json = json_encode($row, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $json = \json_encode($row, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
         if ($json === false) {
             throw new \RuntimeException('Failed to encode row as JSON');
         }
+
         $line = $json . "\n";
 
-        if ($this->gzip) {
-            \gzwrite($this->fh, $line);
-        } else {
-            \fwrite($this->fh, $line);
+        $bytes = $this->gzip
+            ? \gzwrite($this->fh, $line)
+            : \fwrite($this->fh, $line);
+
+        if ($bytes === false) {
+            throw new \RuntimeException("Failed writing to {$this->filename}");
         }
     }
 
     public function close(): void
     {
-        try {
-            // persist index
-            @\file_put_contents($this->indexFile, json_encode($this->index, JSON_PRETTY_PRINT));
-        } finally {
-            if (\is_resource($this->fh)) {
-                if ($this->gzip) {
-                    \gzclose($this->fh);
-                } else {
-                    \fclose($this->fh);
-                }
-                $this->fh = null;
+        // Persist index alongside final
+        $json = \json_encode($this->index, \JSON_PRETTY_PRINT);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode index JSON');
+        }
+
+        if (\file_put_contents($this->indexFile, $json) === false) {
+            throw new \RuntimeException("Failed writing index file: {$this->indexFile}");
+        }
+
+        if (\is_resource($this->fh)) {
+            if ($this->gzip) {
+                \gzclose($this->fh);
+            } else {
+                \fclose($this->fh);
             }
+            $this->fh = null;
         }
     }
 
     public function __destruct()
     {
         if (\is_resource($this->fh)) {
-            $this->close();
+            try {
+                $this->close();
+            } catch (\Throwable $e) {
+                // Avoid throwing in destructors; log instead.
+                \error_log('JsonlWriter destructor error: ' . $e->getMessage());
+            }
         }
     }
 }

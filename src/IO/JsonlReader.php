@@ -5,9 +5,27 @@ namespace Survos\JsonlBundle\IO;
 
 use Survos\JsonlBundle\Contract\JsonlReaderInterface;
 
+/**
+ * Stream-decoding JSONL from plain files or .gz.
+ *
+ * - Yields 1-based line numbers by default.
+ * - You can supply a $startAtLine hint to offset the yielded keys, useful when
+ *   you already know how many lines are in the target (e.g., for resume logic).
+ *
+ * Example:
+ *   $r = new JsonlReader('data/items.jsonl.gz', startAtLine: 101);
+ *   foreach ($r as $lineNo => $row) { ... } // first yielded key will be 101
+ */
 final class JsonlReader implements JsonlReaderInterface
 {
-    public function __construct(private string $filename) {}
+    public function __construct(
+        private string $filename,
+        private int $startAtLine = 1
+    ) {
+        if ($this->startAtLine < 1) {
+            throw new \InvalidArgumentException('startAtLine must be >= 1');
+        }
+    }
 
     public function path(): string
     {
@@ -17,7 +35,7 @@ final class JsonlReader implements JsonlReaderInterface
     /** @return \Traversable<int,array> */
     public function getIterator(): \Traversable
     {
-        $gzip = str_ends_with($this->filename, '.gz');
+        $gzip = \str_ends_with($this->filename, '.gz');
 
         if ($gzip) {
             if (!\function_exists('gzopen')) {
@@ -25,17 +43,23 @@ final class JsonlReader implements JsonlReaderInterface
             }
             $fh = \gzopen($this->filename, 'rb');
             if (!$fh) {
-                throw new \RuntimeException('Cannot open: ' . $this->filename);
+                throw new \RuntimeException('Cannot open gzip file: ' . $this->filename);
             }
             try {
-                $lineNo = 0;
+                $lineNo = $this->startAtLine - 1;
                 while (!\gzeof($fh)) {
                     $line = \gzgets($fh);
-                    if ($line === false) { break; }
+                    if ($line === false) {
+                        break; // EOF or read error
+                    }
                     $line = \trim($line);
-                    if ($line === '') { continue; }
+                    if ($line === '') {
+                        continue; // skip blank lines safely
+                    }
                     $lineNo++;
-                    yield $lineNo => \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
+                    /** @var array $decoded */
+                    $decoded = \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
+                    yield $lineNo => $decoded;
                 }
             } finally {
                 \gzclose($fh);
@@ -45,17 +69,23 @@ final class JsonlReader implements JsonlReaderInterface
 
         $fh = \fopen($this->filename, 'rb');
         if (!$fh) {
-            throw new \RuntimeException('Cannot open: ' . $this->filename);
+            throw new \RuntimeException('Cannot open file: ' . $this->filename);
         }
         try {
-            $lineNo = 0;
+            $lineNo = $this->startAtLine - 1;
             while (!\feof($fh)) {
                 $line = \fgets($fh);
-                if ($line === false) { break; }
+                if ($line === false) {
+                    break; // EOF or read error
+                }
                 $line = \trim($line);
-                if ($line === '') { continue; }
+                if ($line === '') {
+                    continue;
+                }
                 $lineNo++;
-                yield $lineNo => \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
+                /** @var array $decoded */
+                $decoded = \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
+                yield $lineNo => $decoded;
             }
         } finally {
             \fclose($fh);
