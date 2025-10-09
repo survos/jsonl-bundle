@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    cacheResult="false"
+    colors="true"
+    bootstrap="vendor/autoload.php"
+    beStrictAboutOutputDuringTests="true"
+    beStrictAboutChangesToGlobalState="true"
+    failOnRisky="true"
+    failOnWarning="true"
+    displayDetailsOnIncompleteTests="true"
+>
+    <testsuites>
+        <testsuite name="jsonl-bundle">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <directory>vendor</directory>
+        </exclude>
+    </source>
+
+    <php>
+        <!-- helpful in CI -->
+        <ini name="memory_limit" value="-1"/>
+    </php>
+</phpunit>
