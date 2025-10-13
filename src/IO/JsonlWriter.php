@@ -21,7 +21,7 @@ final class JsonlWriter implements JsonlWriterInterface
     /** @var array<string,bool> */
     private array $index = [];
 
-    private function __construct(string $filename)
+    public function __construct(string $filename)
     {
         $this->filename  = $filename;
         $this->gzip      = str_ends_with($filename, '.gz');

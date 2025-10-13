@@ -20,7 +20,9 @@ final class JsonlReader implements JsonlReaderInterface
 {
     public function __construct(
         private string $filename,
-        private int $startAtLine = 1
+        private int $startAtLine = 1,
+        private bool $asArray = true,
+
     ) {
         if ($this->startAtLine < 1) {
             throw new \InvalidArgumentException('startAtLine must be >= 1');
@@ -58,7 +60,7 @@ final class JsonlReader implements JsonlReaderInterface
                     }
                     $lineNo++;
                     /** @var array $decoded */
-                    $decoded = \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
+                    $decoded = \json_decode($line, $this->asArray, flags: \JSON_THROW_ON_ERROR);
                     yield $lineNo => $decoded;
                 }
             } finally {
@@ -84,7 +86,7 @@ final class JsonlReader implements JsonlReaderInterface
                 }
                 $lineNo++;
                 /** @var array $decoded */
-                $decoded = \json_decode($line, true, flags: \JSON_THROW_ON_ERROR);
+                $decoded = \json_decode($line, $this->asArray, flags: \JSON_THROW_ON_ERROR);
                 yield $lineNo => $decoded;
             }
         } finally {
