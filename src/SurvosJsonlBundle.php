@@ -14,7 +14,7 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 final class SurvosJsonlBundle extends AbstractBundle
 {
 
-    protected string $extensionAlias = 'survos_step';
+    protected string $extensionAlias = 'survos_jsonl';
 
     /**
      * Keep this bundle self-contained: register the controller + service here.
