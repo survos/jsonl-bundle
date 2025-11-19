@@ -36,7 +36,7 @@ final class SurvosJsonlBundle extends AbstractBundle
             ->setAutowired(true)
             ->setAutoconfigured(true)
             ->addTag('controller.service_arguments')
-            ->addTag('controller.service_subscriber')
+            ->addTag('container.service_subscriber')
             , []);
 
         // Commands
