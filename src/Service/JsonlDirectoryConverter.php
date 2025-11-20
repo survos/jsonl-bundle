@@ -2,342 +2,291 @@
 
 declare(strict_types=1);
 
+// File: src/Service/JsonlDirectoryConverter.php
+// jsonl-bundle v0.7
+// Convert CSV/JSON/JSONL files (or a directory of them) into a single JSONL file.
+// Optionally apply a per-record callback before writing (e.g. dispatch JsonlRecordEvent).
+
 namespace Survos\JsonlBundle\Service;
 
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use RuntimeException;
-use SplFileInfo;
-use Survos\JsonlBundle\IO\JsonlWriter;
-use Symfony\Component\Filesystem\Path;
-use Symfony\Component\String\Slugger\SluggerInterface;
-use ZipArchive;
+use League\Csv\Reader;
 
 final class JsonlDirectoryConverter
 {
     public function __construct(
-        private readonly SluggerInterface $slugger,
     ) {}
 
     /**
-     * Convert JSON files from a directory or .zip into a JSONL[.gz] file.
+     * Convert input file or directory to a JSONL file.
      *
-     * @param string      $input        Directory path or .zip file
-     * @param string      $output       Target .jsonl or .jsonl.gz file
-     * @param string|null $path         Optional sub-path filter (e.g. "/records")
-     * @param string|null $pattern      Glob pattern for JSON files (default: "*.json")
-     * @param string|null $slugifyField Field whose value should be slugified into "code"
-     * @param string|null $pkSpec       Primary key spec: field name or pattern like "car-{lineNumber}"
+     * @param string   $input         Path to CSV/JSON/JSONL file or directory
+     * @param string   $output        Destination JSONL file (will be overwritten)
+     * @param ?string  $slugifyField  Optional field to slugify
+     * @param ?string  $primaryKeyField Optional primary key field name
+     * @param callable|null $onRecord Optional callback:
+     *                                function (array $record, int $index, string $originFile, string $format): array
      *
-     * @return int Number of JSON objects written
+     * @return int number of records written
      */
     public function convert(
         string $input,
         string $output,
-        ?string $path = null,
-        string $pattern = '*.json',
         ?string $slugifyField = null,
-        ?string $pkSpec = null,
+        ?string $primaryKeyField = null,
+        ?callable $onRecord = null,
     ): int {
-        $isZip   = \is_file($input) && \str_ends_with(\strtolower($input), '.zip');
-        $pattern ??= '*.json';
-
-        $writer     = JsonlWriter::open($output);
-        $lineNumber = 0;
-        $count      = 0;
-
-        try {
-            if ($isZip) {
-                $count = $this->convertFromZip(
-                    input: $input,
-                    writer: $writer,
-                    path: $path,
-                    pattern: $pattern,
-                    slugifyField: $slugifyField,
-                    pkSpec: $pkSpec,
-                    lineNumber: $lineNumber,
-                );
-            } elseif (\is_dir($input)) {
-                $count = $this->convertFromDirectory(
-                    input: $input,
-                    writer: $writer,
-                    path: $path,
-                    pattern: $pattern,
-                    slugifyField: $slugifyField,
-                    pkSpec: $pkSpec,
-                    lineNumber: $lineNumber,
-                );
-            } else {
-                throw new RuntimeException("Input '$input' is neither a directory nor .zip file.");
+        // Ensure directory exists
+        $dir = \dirname($output);
+        if (!\is_dir($dir)) {
+            if (!@mkdir($dir, 0o775, true) && !\is_dir($dir)) {
+                throw new \RuntimeException(sprintf('Unable to create directory "%s".', $dir));
             }
-        } finally {
-            $writer->close();
         }
 
-        return $count;
-    }
-
-    # -------------------------------------------------------------------------
-    # ZIP handling
-    # -------------------------------------------------------------------------
-
-    private function convertFromZip(
-        string $input,
-        JsonlWriter $writer,
-        ?string $path,
-        string $pattern,
-        ?string $slugifyField,
-        ?string $pkSpec,
-        int &$lineNumber,
-    ): int {
-        $zip = new ZipArchive();
-        if (true !== $zip->open($input)) {
-            throw new RuntimeException("Unable to open zip archive '$input'.");
+        // Truncate output
+        if (@file_put_contents($output, '') === false) {
+            throw new \RuntimeException(sprintf('Unable to truncate output file "%s".', $output));
         }
-
-        $filterPath = $this->normalizeFilterPath($path);
-        $count      = 0;
-
-        try {
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $name = $zip->getNameIndex($i);
-                if ($name === false) {
-                    continue;
-                }
-
-                if (! $this->matchesPath($name, $filterPath)) {
-                    continue;
-                }
-
-                if (! $this->matchesPattern(\basename($name), $pattern)) {
-                    continue;
-                }
-
-                $contents = $zip->getFromIndex($i);
-                if ($contents === false) {
-                    throw new RuntimeException("Failed to read entry '$name' from '$input'.");
-                }
-
-                $decoded = \json_decode($contents, true);
-                if (\json_last_error() !== \JSON_ERROR_NONE) {
-                    throw new RuntimeException(
-                        "Invalid JSON in '$name': " . \json_last_error_msg()
-                    );
-                }
-
-                $lineNumber++;
-                $this->processRow(
-                    decoded: $decoded,
-                    writer: $writer,
-                    slugifyField: $slugifyField,
-                    pkSpec: $pkSpec,
-                    sourceName: $name,
-                    lineNumber: $lineNumber,
-                );
-                $count++;
-            }
-        } finally {
-            $zip->close();
-        }
-
-        return $count;
-    }
-
-    # -------------------------------------------------------------------------
-    # Directory handling
-    # -------------------------------------------------------------------------
-
-    private function convertFromDirectory(
-        string $input,
-        JsonlWriter $writer,
-        ?string $path,
-        string $pattern,
-        ?string $slugifyField,
-        ?string $pkSpec,
-        int &$lineNumber,
-    ): int {
-        $base = \rtrim($input, \DIRECTORY_SEPARATOR);
-        if ($path) {
-            $base = Path::join($base, \ltrim($path, \DIRECTORY_SEPARATOR));
-        }
-
-        if (! \is_dir($base)) {
-            throw new RuntimeException("Directory '$base' does not exist.");
-        }
-
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator(
-                $base,
-                \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS
-            )
-        );
 
         $count = 0;
 
-        /** @var SplFileInfo $file */
-        foreach ($iterator as $file) {
-            if (! $file->isFile()) {
-                continue;
-            }
+        if (\is_dir($input)) {
+            // Process all known files in directory
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($input, \FilesystemIterator::SKIP_DOTS)
+            );
 
-            if (! $this->matchesPattern($file->getFilename(), $pattern)) {
-                continue;
-            }
+            /** @var \SplFileInfo $file */
+            foreach ($iterator as $file) {
+                if (!$file->isFile()) {
+                    continue;
+                }
 
-            $contents = \file_get_contents($file->getPathname());
-            if ($contents === false) {
-                throw new RuntimeException("Failed to read '{$file->getPathname()}'.");
-            }
-
-            $decoded = \json_decode($contents, true);
-            if (\json_last_error() !== \JSON_ERROR_NONE) {
-                throw new RuntimeException(
-                    "Invalid JSON in '{$file->getPathname()}': " . \json_last_error_msg()
+                $count += $this->convertFile(
+                    path: $file->getPathname(),
+                    output: $output,
+                    slugifyField: $slugifyField,
+                    primaryKeyField: $primaryKeyField,
+                    onRecord: $onRecord,
+                    offset: $count,
                 );
             }
 
-            $relativeName = \str_replace($base . \DIRECTORY_SEPARATOR, '', $file->getPathname());
-
-            $lineNumber++;
-            $this->processRow(
-                decoded: $decoded,
-                writer: $writer,
-                slugifyField: $slugifyField,
-                pkSpec: $pkSpec,
-                sourceName: $relativeName,
-                lineNumber: $lineNumber,
-            );
-            $count++;
+            return $count;
         }
 
-        return $count;
+        // Single file
+        return $this->convertFile(
+            path: $input,
+            output: $output,
+            slugifyField: $slugifyField,
+            primaryKeyField: $primaryKeyField,
+            onRecord: $onRecord,
+            offset: 0,
+        );
     }
 
-    # -------------------------------------------------------------------------
-    # Row enrichment + tokenCode
-    # -------------------------------------------------------------------------
+    /**
+     * @param callable|null $onRecord function (array $record, int $index, string $originFile, string $format): array
+     */
+    private function convertFile(
+        string $path,
+        string $output,
+        ?string $slugifyField,
+        ?string $primaryKeyField,
+        ?callable $onRecord,
+        int $offset = 0,
+    ): int {
+        $ext = strtolower((string) pathinfo($path, \PATHINFO_EXTENSION));
+
+        return match ($ext) {
+            'csv'   => $this->convertCsv($path, $output, $slugifyField, $primaryKeyField, $onRecord, $offset),
+            'json'  => $this->convertJson($path, $output, $slugifyField, $primaryKeyField, $onRecord, $offset),
+            'jsonl' => $this->convertJsonl($path, $output, $slugifyField, $primaryKeyField, $onRecord, $offset),
+            default => 0, // ignore unknown files for now
+        };
+    }
 
     /**
-     * @param mixed $decoded
+     * @param callable|null $onRecord
      */
-    private function processRow(
-        mixed $decoded,
-        JsonlWriter $writer,
+    private function convertCsv(
+        string $path,
+        string $output,
         ?string $slugifyField,
-        ?string $pkSpec,
-        string $sourceName,
-        int $lineNumber,
-    ): void {
-        if (! \is_array($decoded)) {
-            $decoded = ['value' => $decoded];
+        ?string $primaryKeyField,
+        ?callable $onRecord,
+        int $offset = 0,
+    ): int {
+        $csv = Reader::from($path, 'r');
+        $csv->setHeaderOffset(0);
+        $csv->setDelimiter(',');
+        $csv->setEnclosure('"');
+        $csv->setEscape('\\');
+
+        $index = $offset;
+        $written = 0;
+
+        foreach ($csv->getRecords() as $row) {
+            // Normalize keys: strip BOM + trim
+            $record = [];
+            foreach ($row as $key => $value) {
+                $normalizedKey = trim(preg_replace('/^\xEF\xBB\xBF/u', '', (string) $key));
+                $record[$normalizedKey] = $value;
+            }
+
+            if ($slugifyField && isset($record[$slugifyField])) {
+                $record[$slugifyField] = $this->slugify((string) $record[$slugifyField]);
+            }
+
+            if ($primaryKeyField && !isset($record[$primaryKeyField])) {
+                $record[$primaryKeyField] = $index;
+            }
+
+            if ($onRecord) {
+                $record = $onRecord($record, $index, $path, 'csv');
+            }
+
+            $this->appendJsonl($output, $record);
+            $index++;
+            $written++;
         }
 
-        // 1) Optional slugify → "code" field as first key.
-        $code = null;
-        if ($slugifyField !== null && isset($decoded[$slugifyField])) {
-            $code = $this->slugify((string) $decoded[$slugifyField]);
+        return $written;
+    }
 
-            // Ensure "code" is the first key, but don't lose existing "code" if already set.
-            unset($decoded['code']);
-            $decoded = ['code' => $code] + $decoded;
+    /**
+     * @param callable|null $onRecord
+     */
+    private function convertJson(
+        string $path,
+        string $output,
+        ?string $slugifyField,
+        ?string $primaryKeyField,
+        ?callable $onRecord,
+        int $offset = 0,
+    ): int {
+        $contents = @file_get_contents($path);
+        if ($contents === false) {
+            throw new \RuntimeException(sprintf('Unable to read JSON from "%s".', $path));
         }
 
-        // 2) Compute tokenCode based on pkSpec / code / lineNumber.
-        $tokenCode = $this->computeTokenCode(
-            row: $decoded,
-            code: $code,
-            pkSpec: $pkSpec,
-            lineNumber: $lineNumber,
-            fallbackSource: $sourceName,
-        );
+        $decoded = json_decode($contents, true, 512, \JSON_THROW_ON_ERROR);
 
-        // 3) Write via JsonlWriter (handles index + dedupe).
-        $writer->write($decoded, $tokenCode);
+        $records = [];
+
+        if (\is_array($decoded) && \array_is_list($decoded)) {
+            $records = $decoded;
+        } elseif (\is_array($decoded)) {
+            $records = [$decoded];
+        }
+
+        $index = $offset;
+        $written = 0;
+
+        foreach ($records as $item) {
+            if (!\is_array($item)) {
+                continue;
+            }
+
+            /** @var array<string,mixed> $record */
+            $record = $item;
+
+            if ($slugifyField && isset($record[$slugifyField])) {
+                $record[$slugifyField] = $this->slugify((string) $record[$slugifyField]);
+            }
+
+            if ($primaryKeyField && !isset($record[$primaryKeyField])) {
+                $record[$primaryKeyField] = $index;
+            }
+
+            if ($onRecord) {
+                $record = $onRecord($record, $index, $path, 'json');
+            }
+
+            $this->appendJsonl($output, $record);
+            $index++;
+            $written++;
+        }
+
+        return $written;
+    }
+
+    /**
+     * @param callable|null $onRecord
+     */
+    private function convertJsonl(
+        string $path,
+        string $output,
+        ?string $slugifyField,
+        ?string $primaryKeyField,
+        ?callable $onRecord,
+        int $offset = 0,
+    ): int {
+        $handle = @fopen($path, 'rb');
+        if (!$handle) {
+            throw new \RuntimeException(sprintf('Unable to open JSONL file "%s".', $path));
+        }
+
+        $index = $offset;
+        $written = 0;
+
+        try {
+            while (($line = fgets($handle)) !== false) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+
+                $decoded = json_decode($line, true, 512, \JSON_THROW_ON_ERROR);
+                if (!\is_array($decoded)) {
+                    continue;
+                }
+
+                /** @var array<string,mixed> $record */
+                $record = $decoded;
+
+                if ($slugifyField && isset($record[$slugifyField])) {
+                    $record[$slugifyField] = $this->slugify((string) $record[$slugifyField]);
+                }
+
+                if ($primaryKeyField && !isset($record[$primaryKeyField])) {
+                    $record[$primaryKeyField] = $index;
+                }
+
+                if ($onRecord) {
+                    $record = $onRecord($record, $index, $path, 'jsonl');
+                }
+
+                $this->appendJsonl($output, $record);
+                $index++;
+                $written++;
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return $written;
+    }
+
+    /**
+     * @param array<string,mixed> $record
+     */
+    private function appendJsonl(string $output, array $record): void
+    {
+        $json = json_encode($record, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+
+        if (@file_put_contents($output, $json, \FILE_APPEND | \LOCK_EX) === false) {
+            throw new \RuntimeException(sprintf('Failed to append record to "%s".', $output));
+        }
     }
 
     private function slugify(string $value): string
     {
-        return \strtolower((string) $this->slugger->slug($value));
-    }
+        $value = \trim(\mb_strtolower($value));
+        $value = \preg_replace('/[^a-z0-9]+/u', '-', $value) ?? $value;
+        $value = \trim($value, '-');
 
-    /**
-     * Compute a stable tokenCode for JsonlWriter based on:
-     *  - pkSpec as a pattern (contains "{lineNumber}" or "{slug}")
-     *  - pkSpec as a field name
-     *  - otherwise fall back to "code", then lineNumber, then sourceName.
-     */
-    private function computeTokenCode(
-        array $row,
-        ?string $code,
-        ?string $pkSpec,
-        int $lineNumber,
-        string $fallbackSource,
-    ): string {
-        // Pattern mode: pkSpec contains placeholders like {lineNumber}, {slug}.
-        if ($pkSpec !== null && \str_contains($pkSpec, '{')) {
-            return \strtr($pkSpec, [
-                '{lineNumber}' => (string) $lineNumber,
-                '{slug}'       => $code ?? '',
-            ]);
-        }
-
-        // Field name mode: pkSpec is interpreted as "use row[pkSpec]".
-        if ($pkSpec !== null) {
-            if (isset($row[$pkSpec]) && $row[$pkSpec] !== '') {
-                return (string) $row[$pkSpec];
-            }
-
-            // If field not present or empty, fall back to lineNumber.
-            return (string) $lineNumber;
-        }
-
-        // No pkSpec: prefer "code" if present.
-        if ($code !== null && $code !== '') {
-            return $code;
-        }
-
-        // Next best: "id" if present.
-        if (isset($row['id']) && $row['id'] !== '') {
-            return (string) $row['id'];
-        }
-
-        // Fallback to lineNumber, and finally to sourceName to break ties.
-        return $lineNumber . ':' . $fallbackSource;
-    }
-
-    # -------------------------------------------------------------------------
-    # Matching helpers
-    # -------------------------------------------------------------------------
-
-    private function normalizeFilterPath(?string $path): ?string
-    {
-        return $path ? \trim($path, '/') : null;
-    }
-
-    private function matchesPath(string $entry, ?string $filter): bool
-    {
-        if ($filter === null) {
-            return true;
-        }
-
-        $entry = \str_replace('\\', '/', $entry);
-
-        return \str_contains($entry, '/' . $filter . '/')
-            || \str_starts_with($entry, $filter . '/');
-    }
-
-    private function matchesPattern(string $filename, string $pattern): bool
-    {
-        if (\function_exists('fnmatch')) {
-            return \fnmatch($pattern, $filename);
-        }
-
-        // Fallback: treat "*.json" specially, otherwise accept everything.
-        if ($pattern === '*.json') {
-            return \str_ends_with(\strtolower($filename), '.json');
-        }
-
-        return true;
+        return $value;
     }
 }
-
