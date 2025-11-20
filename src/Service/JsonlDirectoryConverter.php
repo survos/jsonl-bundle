@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 // File: src/Service/JsonlDirectoryConverter.php
-// jsonl-bundle v0.7
+// jsonl-bundle v0.7+
 // Convert CSV/JSON/JSONL files (or a directory of them) into a single JSONL file.
-// Optionally apply a per-record callback before writing (e.g. dispatch JsonlRecordEvent).
+// - Always normalize keys (BOM, whitespace, separators, casing).
+// - Optionally slugify a field and inject a primary key.
+// - Optionally apply a per-record callback before writing.
 
 namespace Survos\JsonlBundle\Service;
 
@@ -19,12 +21,12 @@ final class JsonlDirectoryConverter
     /**
      * Convert input file or directory to a JSONL file.
      *
-     * @param string   $input         Path to CSV/JSON/JSONL file or directory
-     * @param string   $output        Destination JSONL file (will be overwritten)
-     * @param ?string  $slugifyField  Optional field to slugify
-     * @param ?string  $primaryKeyField Optional primary key field name
-     * @param callable|null $onRecord Optional callback:
-     *                                function (array $record, int $index, string $originFile, string $format): array
+     * @param string        $input           Path to CSV/JSON/JSONL file or directory
+     * @param string        $output          Destination JSONL file (will be overwritten)
+     * @param ?string       $slugifyField    Optional field to slugify (after key normalization)
+     * @param ?string       $primaryKeyField Optional primary key field name (after key normalization)
+     * @param callable|null $onRecord        Optional callback:
+     *                                       function (array $record, int $index, string $originFile, string $format): array
      *
      * @return int number of records written
      */
@@ -128,10 +130,10 @@ final class JsonlDirectoryConverter
         $written = 0;
 
         foreach ($csv->getRecords() as $row) {
-            // Normalize keys: strip BOM + trim
+            // Normalize keys: strip BOM, trim, separators, casing.
             $record = [];
             foreach ($row as $key => $value) {
-                $normalizedKey = trim(preg_replace('/^\xEF\xBB\xBF/u', '', (string) $key));
+                $normalizedKey = $this->normalizeKey((string) $key);
                 $record[$normalizedKey] = $value;
             }
 
@@ -189,8 +191,14 @@ final class JsonlDirectoryConverter
                 continue;
             }
 
-            /** @var array<string,mixed> $record */
-            $record = $item;
+            /** @var array<string,mixed> $item */
+            $record = [];
+
+            // Normalize keys for each JSON object
+            foreach ($item as $key => $value) {
+                $normalizedKey = $this->normalizeKey((string) $key);
+                $record[$normalizedKey] = $value;
+            }
 
             if ($slugifyField && isset($record[$slugifyField])) {
                 $record[$slugifyField] = $this->slugify((string) $record[$slugifyField]);
@@ -243,8 +251,14 @@ final class JsonlDirectoryConverter
                     continue;
                 }
 
-                /** @var array<string,mixed> $record */
-                $record = $decoded;
+                /** @var array<string,mixed> $decoded */
+                $record = [];
+
+                // Normalize keys for each JSONL record
+                foreach ($decoded as $key => $value) {
+                    $normalizedKey = $this->normalizeKey((string) $key);
+                    $record[$normalizedKey] = $value;
+                }
 
                 if ($slugifyField && isset($record[$slugifyField])) {
                     $record[$slugifyField] = $this->slugify((string) $record[$slugifyField]);
@@ -274,7 +288,7 @@ final class JsonlDirectoryConverter
      */
     private function appendJsonl(string $output, array $record): void
     {
-        $json = json_encode($record, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n";
+        $json = json_encode($record, \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR) . "\n";
 
         if (@file_put_contents($output, $json, \FILE_APPEND | \LOCK_EX) === false) {
             throw new \RuntimeException(sprintf('Failed to append record to "%s".', $output));
@@ -289,4 +303,40 @@ final class JsonlDirectoryConverter
 
         return $value;
     }
+
+    /**
+     * Normalize a raw field/key name to a canonical snake_case key.
+     *
+     * Examples:
+     *   "Dimensions.Height"  -> "dimensions_height"
+     *   "Source Name"        -> "source_name"
+     *   "accessionNumber"    -> "accession_number"
+     *   "ULAN"               -> "ulan"
+     */
+    private function normalizeKey(string $key): string
+    {
+        // Strip BOM if present
+        $key = \preg_replace('/^\xEF\xBB\xBF/u', '', $key) ?? $key;
+
+        // Trim whitespace
+        $key = \trim($key);
+
+        // Replace common separators with underscore
+        $key = \strtr($key, [
+            ' ' => '_',
+            '.' => '_',
+        ]);
+
+        // CamelCase to snake_case: SomeFieldName -> Some_Field_Name
+        $key = \preg_replace('/(?<!^)[A-Z]/', '_$0', $key) ?? $key;
+
+        // Collapse multiple underscores
+        $key = \preg_replace('/__+/', '_', $key) ?? $key;
+
+        // Lowercase
+        $key = \strtolower($key);
+
+        return $key;
+    }
 }
+

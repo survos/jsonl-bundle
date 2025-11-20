@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 // File: src/Model/FieldStats.php
-// jsonl-bundle v0.13
+// jsonl-bundle v0.14
 // Smart model for a single field's profiling data.
 // Accumulates stats via push() and can serialize to/from array.
 
@@ -9,8 +9,8 @@ namespace Survos\JsonlBundle\Model;
 
 final class FieldStats
 {
-    public const DISTINCT_CAP = 1024;
-    public const DISTRIBUTION_LIMIT = 1024;
+    public const DISTINCT_CAP = 500;
+    public const DISTRIBUTION_LIMIT = 100;
     public const DISTRIBUTION_MAX_VALUE_LENGTH = 64;
 
     public string $name;
@@ -119,7 +119,7 @@ final class FieldStats
             $avgLen = (float)$this->stringSumLength / $this->stringCount;
         }
 
-        $booleanLike   = $this->computeBooleanLike();
+        $booleanLike    = $this->computeBooleanLike();
         $facetCandidate = $this->computeFacetCandidate($types);
         $this->storageHint = $this->computeStorageHint($types);
 
@@ -182,22 +182,46 @@ final class FieldStats
         if (is_array($stringLengths)) {
             $self->stringMinLength = isset($stringLengths['min']) ? (int)$stringLengths['min'] : null;
             $self->stringMaxLength = isset($stringLengths['max']) ? (int)$stringLengths['max'] : null;
-            $avg = $stringLengths['avg'] ?? null;
-            if ($avg !== null) {
-                $self->stringSumLength = 0; // we don't restore exact sum, just derived avg externally if needed
-            }
+            // We don't restore exact sum; average can be recomputed if needed.
         }
 
-        $self->firstValue   = $data['firstValue'] ?? null;
-        $self->storageHint  = (string)($data['storageHint'] ?? '');
+        $self->firstValue  = $data['firstValue'] ?? null;
+        $self->storageHint = (string)($data['storageHint'] ?? '');
 
-        // We intentionally do not restore distinctValues here; it's not needed for summary.
         return $self;
     }
 
     // -------------------------------------------------------------------------
-    // Summary helpers
+    // Public helpers for consumers (CodeBundle, summary renderer)
     // -------------------------------------------------------------------------
+
+    /**
+     * @return string[]
+     */
+    public function getTypes(): array
+    {
+        $types = [];
+        if ($this->flagInt) {
+            $types[] = 'int';
+        }
+        if ($this->flagFloat) {
+            $types[] = 'float';
+        }
+        if ($this->flagBool) {
+            $types[] = 'bool';
+        }
+        if ($this->flagString) {
+            $types[] = 'string';
+        }
+        if ($this->flagArray) {
+            $types[] = 'array';
+        }
+        if ($this->flagObject) {
+            $types[] = 'object';
+        }
+
+        return $types;
+    }
 
     public function getTypesString(): string
     {
@@ -214,9 +238,19 @@ final class FieldStats
         return $label;
     }
 
+    public function isBooleanLike(): bool
+    {
+        return $this->computeBooleanLike();
+    }
+
+    public function isFacetCandidate(): bool
+    {
+        return $this->computeFacetCandidate($this->getTypes());
+    }
+
     public function getFacetFlag(): string
     {
-        return $this->computeFacetCandidate($this->getTypes()) ? '✔' : '';
+        return $this->isFacetCandidate() ? '✔' : '';
     }
 
     public function getUniqueFlag(): string
@@ -230,7 +264,7 @@ final class FieldStats
 
     public function getBooleanFlag(): string
     {
-        return $this->computeBooleanLike() ? '✔' : '';
+        return $this->isBooleanLike() ? '✔' : '';
     }
 
     public function getRangeLabel(): string
@@ -268,7 +302,7 @@ final class FieldStats
     }
 
     // -------------------------------------------------------------------------
-    // Internal helpers
+    // Internal stat logic
     // -------------------------------------------------------------------------
 
     private function normalizeDistinctKey(mixed $value): string
@@ -278,34 +312,6 @@ final class FieldStats
         }
 
         return json_encode($value);
-    }
-
-    /**
-     * @return string[]
-     */
-    private function getTypes(): array
-    {
-        $types = [];
-        if ($this->flagInt) {
-            $types[] = 'int';
-        }
-        if ($this->flagFloat) {
-            $types[] = 'float';
-        }
-        if ($this->flagBool) {
-            $types[] = 'bool';
-        }
-        if ($this->flagString) {
-            $types[] = 'string';
-        }
-        if ($this->flagArray) {
-            $types[] = 'array';
-        }
-        if ($this->flagObject) {
-            $types[] = 'object';
-        }
-
-        return $types;
     }
 
     private function computeBooleanLike(): bool
