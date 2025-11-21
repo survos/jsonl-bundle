@@ -426,7 +426,7 @@ final class FieldStats
     private function formatValueForDisplay(mixed $value, string $storageHint): string
     {
         if ($storageHint === 'int' || $storageHint === 'float' || $storageHint === 'bool' || $storageHint === 'json') {
-            return (string) $value;
+            return is_iterable($value) ? json_encode($value) : (string)$value;
         }
 
         if ($storageHint === '' && is_numeric($value)) {

@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 // File: src/Command/JsonlConvertCommand.php
-// jsonl-bundle v0.10
+// jsonl-bundle v0.11
 // Unified converter: CSV/JSON/JSONL/dir/zip → JSONL
 // Optional per-record enhancement via JsonlRecordEvent,
 // plus start/finish events for profiling/summarization.
@@ -11,6 +11,7 @@ namespace Survos\JsonlBundle\Command;
 use Survos\JsonlBundle\Event\JsonlConvertFinishedEvent;
 use Survos\JsonlBundle\Event\JsonlConvertStartedEvent;
 use Survos\JsonlBundle\Event\JsonlRecordEvent;
+use Survos\JsonlBundle\IO\ZipJsonRecordProvider;
 use Survos\JsonlBundle\Service\JsonlDirectoryConverter;
 use Survos\JsonlBundle\Service\JsonlProfileSummaryRenderer;
 use Symfony\Component\Console\Attribute\Argument;
@@ -22,7 +23,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 #[AsCommand(
     name: 'jsonl:convert',
-    description: 'Convert a CSV/JSON/JSONL file (or directory) into JSONL, optionally dispatching enrichment events.'
+    description: 'Convert a CSV/JSON/JSONL/JSONLD file, directory, or ZIP into JSONL, optionally dispatching enrichment events.'
 )]
 final class JsonlConvertCommand
 {
@@ -35,7 +36,7 @@ final class JsonlConvertCommand
     public function __invoke(
         SymfonyStyle $io,
 
-        #[Argument('Input source (CSV, JSON, JSONL, or directory)')]
+        #[Argument('Input source (CSV, JSON, JSONL, JSONLD, directory, or ZIP)')]
         string $input,
 
         #[Argument('Output JSONL file')]
@@ -55,22 +56,28 @@ final class JsonlConvertCommand
 
         #[Option('Comma-separated tags applied to all records (e.g. "wcma,profile:dev")')]
         ?string $tags = null,
+
+        #[Option('Path prefix inside a ZIP archive, e.g. "marvel-search-master/records/"')]
+        ?string $pathInZip = null,
     ): int {
         if (!file_exists($input)) {
             $io->error(sprintf('Input "%s" does not exist.', $input));
             return Command::FAILURE;
         }
 
+        $isZip = str_ends_with(strtolower($input), '.zip');
+
+        if ($isZip && !$pathInZip) {
+            $io->warning('Using ZIP input without --path; all *.json / *.jsonld entries will be considered.');
+        }
+
         // Default: we do dispatch per-record events unless explicitly disabled.
         $dispatch ??= true;
 
-        // Build tags: basename + optional dataset + CLI tags
-        $baseTag = pathinfo($input, PATHINFO_FILENAME) ?: null;
+        // Build dataset + tags: dataset + CLI tags
+        $dataset ??= pathinfo($input, PATHINFO_FILENAME) ?: null;
         $tagsArray = [];
 
-        if ($baseTag) {
-            $tagsArray[] = $baseTag;
-        }
         if ($dataset) {
             $tagsArray[] = $dataset;
         }
@@ -84,8 +91,9 @@ final class JsonlConvertCommand
 
         $io->section('Converting source → JSONL');
         $io->listing([
-            "Input:     $input",
+            "Input:     $input" . ($isZip && $pathInZip ? " (ZIP path: $pathInZip)" : ''),
             "Output:    $output",
+            "Dataset:   " . ($dataset ?: '(none)'),
             "Tags:      " . (implode(', ', $tagsArray) ?: '(none)'),
             "Dispatch:  " . ($dispatch ? 'yes' : 'no'),
             "Slugify:   " . ($slugify ?: '(none)'),
@@ -101,9 +109,10 @@ final class JsonlConvertCommand
                 return Command::FAILURE;
             }
 
-            $onRecord = function (array $record, int $index, string $originFile, string $format) use ($tagsArray) {
+            $onRecord = function (array $record, int $index, string $originFile, string $format) use ($tagsArray, $dataset) {
                 $event = new JsonlRecordEvent(
                     record: $record,
+                    dataset: $dataset,
                     origin: $originFile,
                     format: $format,
                     index: $index,
@@ -112,6 +121,7 @@ final class JsonlConvertCommand
 
                 $this->eventDispatcher->dispatch($event);
 
+                // Listeners can reject by setting $event->record = null
                 return $event->record;
             };
         }
@@ -128,13 +138,28 @@ final class JsonlConvertCommand
         }
 
         try {
-            $count = $this->converter->convert(
-                input: $input,
-                output: $output,
-                slugifyField: $slugify,
-                primaryKeyField: $pk,
-                onRecord: $onRecord,
-            );
+            if ($isZip) {
+                $provider = new ZipJsonRecordProvider($input, $pathInZip ?: null);
+
+                $count = $this->converter->convertFromProvider(
+                    records: $provider->getRecords(),
+                    output: $output,
+                    slugifyField: $slugify,
+                    primaryKeyField: $pk,
+                    onRecord: $onRecord,
+                    offset: 0,
+                    origin: $input,
+                    format: 'json',
+                );
+            } else {
+                $count = $this->converter->convert(
+                    input: $input,
+                    output: $output,
+                    slugifyField: $slugify,
+                    primaryKeyField: $pk,
+                    onRecord: $onRecord,
+                );
+            }
         } catch (\Throwable $e) {
             $io->error($e->getMessage());
             return Command::FAILURE;
@@ -158,5 +183,5 @@ final class JsonlConvertCommand
 
         return Command::SUCCESS;
     }
-
 }
+

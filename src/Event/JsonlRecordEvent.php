@@ -22,15 +22,19 @@ use Symfony\Contracts\EventDispatcher\Event;
  */
 final class JsonlRecordEvent extends Event
 {
+    const STATUS_OKAY = 'okay';
+    const STATUS_DUPLICATE = 'duplicate';
     /**
      * @param array<string,mixed> $record
      * @param string[]            $tags
      */
     public function __construct(
-        public array $record,
+        public ?array $record, // do not insert if null, it's a way for the listener to ignore it
+        public string $dataset,
         public ?string $origin = null,         // e.g. filename or URI
         public ?string $format = null,         // e.g. "csv", "json", "jsonl"
         public ?int $index = null,             // 0-based record index if known
-        public array $tags = [],               // generic routing / classification tags
+        public array $tags = [],               // generic routing / classification tags,
+        public ?string $status = null,
     ) {}
 }
