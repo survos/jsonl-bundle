@@ -490,7 +490,25 @@ final class JsonlDirectoryConverter
         $lowerField = \strtolower($field);
         $l          = \strtolower($v);
 
-        // --- Year-specific clean-up: treat 0/0000 as "no year" ---
+        // --- URL / media detection -------------------------------------------
+        if (\preg_match('~^https?://~i', $v) === 1) {
+            // Force https for common image extensions
+            if (\str_starts_with($v, 'http://')
+                && \preg_match('~\.(jpe?g|png|gif|webp)(\?|$)~i', $v) === 1
+            ) {
+                $v = 'https://' . \substr($v, 7);
+            }
+
+            // Later, the profiler can look at $v to tag:
+            //  - image URLs      (by extension)
+            //  - audio URLs      (mp3, wav, ogg, etc.)
+            //  - video URLs      (mp4/webm or youtube.com / youtu.be)
+            // For now we just return the normalized URL.
+            return $v;
+        }
+        // ---------------------------------------------------------------------
+
+        // --- Year-specific clean-up: treat 0/0000 as "no year" ---------------
         $looksLikeYear = $lowerField === 'year'
             || \str_ends_with($lowerField, '_year')
             || \str_contains($lowerField, 'year');
@@ -498,7 +516,7 @@ final class JsonlDirectoryConverter
         if ($looksLikeYear && \in_array($v, ['0', '0000'], true)) {
             return null;
         }
-        // ---------------------------------------------------------
+        // ---------------------------------------------------------------------
 
         // Boolean-ish
         if (\in_array($l, ['true', 'false', 'yes', 'no', 'y', 'n', 'on', 'off'], true)) {
@@ -525,6 +543,7 @@ final class JsonlDirectoryConverter
 
         return $v;
     }
+
 
 }
 
