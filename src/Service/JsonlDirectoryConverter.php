@@ -21,8 +21,9 @@ use League\Csv\Reader;
 
 final class JsonlDirectoryConverter
 {
-    public function __construct(
-    ) {}
+    public function __construct()
+    {
+    }
 
     /**
      * Convert input file or directory to a JSONL file.
@@ -148,11 +149,11 @@ final class JsonlDirectoryConverter
                 $fmt        = isset($item['format']) ? (string) $item['format'] : $format;
             }
 
-            // Normalize keys from the provider
+            // Normalize keys from the provider + normalize scalar values
             $record = [];
             foreach ($rawRecord as $key => $value) {
                 $normalizedKey = $this->normalizeKey((string) $key);
-                $record[$normalizedKey] = $value;
+                $record[$normalizedKey] = $this->normalizeScalarForJsonl($normalizedKey, $value);
             }
 
             if ($slugifyField && isset($record[$slugifyField])) {
@@ -230,11 +231,11 @@ final class JsonlDirectoryConverter
         $written  = 0;
 
         foreach ($csv->getRecords() as $row) {
-            // Normalize keys: strip BOM, trim, separators, casing.
+            // Normalize keys + normalize scalar values
             $record = [];
             foreach ($row as $key => $value) {
                 $normalizedKey = $this->normalizeKey((string) $key);
-                $record[$normalizedKey] = $value;
+                $record[$normalizedKey] = $this->normalizeScalarForJsonl($normalizedKey, $value);
             }
 
             if ($slugifyField && isset($record[$slugifyField])) {
@@ -300,10 +301,10 @@ final class JsonlDirectoryConverter
             /** @var array<string,mixed> $item */
             $record = [];
 
-            // Normalize keys for each JSON object
+            // Normalize keys + normalize scalar values for each JSON object
             foreach ($item as $key => $value) {
                 $normalizedKey = $this->normalizeKey((string) $key);
-                $record[$normalizedKey] = $value;
+                $record[$normalizedKey] = $this->normalizeScalarForJsonl($normalizedKey, $value);
             }
 
             if ($slugifyField && isset($record[$slugifyField])) {
@@ -367,10 +368,10 @@ final class JsonlDirectoryConverter
                 /** @var array<string,mixed> $decoded */
                 $record = [];
 
-                // Normalize keys for each JSONL record
+                // Normalize keys + normalize scalar values for each JSONL record
                 foreach ($decoded as $key => $value) {
                     $normalizedKey = $this->normalizeKey((string) $key);
-                    $record[$normalizedKey] = $value;
+                    $record[$normalizedKey] = $this->normalizeScalarForJsonl($normalizedKey, $value);
                 }
 
                 if ($slugifyField && isset($record[$slugifyField])) {
@@ -462,5 +463,68 @@ final class JsonlDirectoryConverter
 
         return $key;
     }
+
+    /**
+     * Normalize a scalar for JSONL + profiling:
+     *  - "" / whitespace-only → null
+     *  - bool-ish strings     → bool
+     *  - integer-ish strings  → int (unless it's clearly an id/code with leading zeros)
+     *  - float-ish strings    → float
+     *  - everything else      → original value
+     */
+    private function normalizeScalarForJsonl(string $field, mixed $value): mixed
+    {
+        if ($value === '' || $value === null) {
+            return null;
+        }
+
+        if (!\is_string($value)) {
+            return $value;
+        }
+
+        $v = \trim($value);
+        if ($v === '') {
+            return null;
+        }
+
+        $lowerField = \strtolower($field);
+        $l          = \strtolower($v);
+
+        // --- Year-specific clean-up: treat 0/0000 as "no year" ---
+        $looksLikeYear = $lowerField === 'year'
+            || \str_ends_with($lowerField, '_year')
+            || \str_contains($lowerField, 'year');
+
+        if ($looksLikeYear && \in_array($v, ['0', '0000'], true)) {
+            return null;
+        }
+        // ---------------------------------------------------------
+
+        // Boolean-ish
+        if (\in_array($l, ['true', 'false', 'yes', 'no', 'y', 'n', 'on', 'off'], true)) {
+            return \in_array($l, ['true', 'yes', 'y', 'on', '1'], true);
+        }
+
+        $looksLikeIdOrCode = \str_contains($lowerField, 'id') || \str_contains($lowerField, 'code');
+
+        // Integer (no decimal point, no exponent)
+        if (\preg_match('/^-?\d+$/', $v) === 1) {
+            $hasLeadingZero = \strlen($v) > 1 && $v[0] === '0';
+
+            if (!$looksLikeIdOrCode || !$hasLeadingZero) {
+                return (int) $v;
+            }
+
+            return $v; // code-like, keep as string
+        }
+
+        // Float
+        if (\is_numeric($v) && \preg_match('/^-?(?:\d+\.\d+|\d+\.|\.\d+|\d+)(?:[eE][+\-]?\d+)?$/', $v) === 1) {
+            return (float) $v;
+        }
+
+        return $v;
+    }
+
 }
 
