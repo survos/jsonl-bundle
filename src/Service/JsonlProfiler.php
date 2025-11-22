@@ -11,8 +11,13 @@ namespace Survos\JsonlBundle\Service;
  */
 final class JsonlProfiler implements JsonlProfilerInterface
 {
+    /**
+     * @param int $distinctCap Maximum distinct values to track per field.
+     *                         50_000 is enough for typical CSV datasets;
+     *                         for truly huge sets we can later use a Bloom filter.
+     */
     public function __construct(
-        private readonly int $distinctCap = 500,
+        private readonly int $distinctCap = 50000,
     ) {
     }
 
@@ -54,8 +59,8 @@ final class JsonlProfiler implements JsonlProfilerInterface
 
                 // String length stats
                 if (\is_string($value)) {
-                    $len = \strlen($value);
-                    $lengths = &$fieldStats['stringLengths'];
+                    $len      = \strlen($value);
+                    $lengths  = &$fieldStats['stringLengths'];
 
                     $lengths['min'] = $lengths['min'] === null ? $len : \min($lengths['min'], $len);
                     $lengths['max'] = $lengths['max'] === null ? $len : \max($lengths['max'], $len);
@@ -91,9 +96,6 @@ final class JsonlProfiler implements JsonlProfilerInterface
         return $stats;
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function createEmptyFieldStats(): array
     {
         return [
@@ -102,7 +104,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
             'distinct'           => 0,
             'distinctCapReached' => false,
             'types'              => [],
-            'distinctValues'     => [], // internal; removed in finalize
+            'distinctValues'     => [],
             'stringLengths'      => [
                 'min'   => null,
                 'max'   => null,
@@ -136,9 +138,6 @@ final class JsonlProfiler implements JsonlProfilerInterface
         return \json_encode($value, \JSON_THROW_ON_ERROR);
     }
 
-    /**
-     * @param array<string, mixed> $fieldStats
-     */
     private function isBooleanLike(array $fieldStats): bool
     {
         $types = $fieldStats['types'] ?? [];
@@ -147,7 +146,6 @@ final class JsonlProfiler implements JsonlProfilerInterface
             return true;
         }
 
-        // Heuristic: few distinct values and only 0/1/true/false/yes/no-like strings
         if (($fieldStats['distinct'] ?? 0) <= 5 && \in_array('string', $types, true)) {
             $sampleKeys = \array_keys($fieldStats['distinctValues'] ?? []);
             $normalized = \array_map(static fn (string $v) => \strtolower(\trim($v)), $sampleKeys);
@@ -165,19 +163,15 @@ final class JsonlProfiler implements JsonlProfilerInterface
         return false;
     }
 
-    /**
-     * @param array<string, mixed> $fieldStats
-     */
     private function inferStorageHint(array $fieldStats): ?string
     {
-        /** @var string[] $types */
         $types = $fieldStats['types'] ?? [];
 
         if (empty($types)) {
             return null;
         }
 
-        if ($types === ['bool'] || ($types === ['bool', 'null']) || ($types === ['null', 'bool'])) {
+        if ($types === ['bool'] || $types === ['bool', 'null'] || $types === ['null', 'bool']) {
             return 'bool';
         }
 
