@@ -1,55 +1,50 @@
 <?php
 declare(strict_types=1);
 
-// File: src/SurvosJsonlBundle.php
-// JsonlBundle Enhancement Pipeline v0.4
-// This iteration: wire JsonEnhanceCommand and core converters; listeners use #[AsEventListener].
-
 namespace Survos\JsonlBundle;
 
-use Survos\JsonlBundle\Command\JsonlConvertCommand;
-use Survos\JsonlBundle\EventListener\JsonlProfileListener;
-use Survos\JsonlBundle\Service\JsonlDirectoryConverter;
-use Survos\JsonlBundle\Service\JsonlProfileSummaryRenderer;
-use Survos\JsonlBundle\Service\JsonToJsonlConverter;
+use Survos\JsonlBundle\IO\JsonlReader;
+use Survos\JsonlBundle\IO\JsonlReaderInterface;
+use Survos\JsonlBundle\Service\JsonlProfiler;
+use Survos\JsonlBundle\Service\JsonlProfilerInterface;
+use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
 final class SurvosJsonlBundle extends AbstractBundle
 {
-    protected string $extensionAlias = 'survos_jsonl';
-
-    /**
-     * @param array<mixed> $config
-     */
-    public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
+    public function configure(DefinitionConfigurator $definition): void
     {
-        $console = [JsonlConvertCommand::class];
-        $autowirePublic = static function (ContainerBuilder $builder, array $classes): void {
-            array_map(
-                static fn (string $class) => $builder->autowire($class)
-                    ->setPublic(true)
-                    ->setAutowired(true)
-                    ->setAutoconfigured(true),
-                $classes
-            );
-        };
+        // No config (yet)
+    }
 
-        // Console commands (Symfony 7.3 invokable style in the classes themselves)
-        $autowirePublic($builder, $console);
-        foreach ($console as $class) {
-            $builder->getDefinition($class)->addTag('console.command');
-        }
+    public function loadExtension(
+        array $config,
+        ContainerConfigurator $container,
+        ContainerBuilder $builder,
+    ): void {
+        $services = $container->services();
 
-        // Core services (Jsonl + converters + optional DatasetJsonlWriter)
-        $autowirePublic($builder, [
-            JsonlDirectoryConverter::class,
-            JsonToJsonlConverter::class,
-            JsonlProfileListener::class,
-            JsonlProfileSummaryRenderer::class,
-        ]);
+        // Profiler concrete service
+        $services
+            ->set(JsonlProfiler::class)
+            ->autowire()
+            ->autoconfigure();
 
-        // Event listeners are registered via #[AsEventListener] in the app and autoconfigure.
+        // Alias interface -> implementation
+        $builder
+            ->setAlias(JsonlProfilerInterface::class, JsonlProfiler::class)
+            ->setPublic(false);
+
+        // JsonlReader: we allow autowire by concrete class
+        $services
+            ->set(JsonlReader::class)
+            ->autowire()
+            ->autoconfigure();
+// Optional: alias interface to concrete
+        $builder
+            ->setAlias(JsonlReaderInterface::class, JsonlReader::class)
+            ->setPublic(false);
     }
 }
