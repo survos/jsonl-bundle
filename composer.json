@@ -17,7 +17,8 @@
         "roave/security-advisories": "dev-latest",
         "phpunit/phpunit": "^12",
         "symfony/messenger": "^7.4||^8.0",
-        "league/csv": "^9.27"
+        "league/csv": "^9.27",
+        "halaxa/json-machine": "^1.2"
     },
     "suggest": {
         "halaxa/json-machine": "for importing large json"

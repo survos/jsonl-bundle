@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle;
@@ -12,11 +13,17 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
+/**
+ * Survos JSONL Bundle
+ *
+ * Provides services for reading, writing, and converting JSONL (JSON Lines) files.
+ * Includes profiling capabilities and event-driven record processing.
+ */
 final class SurvosJsonlBundle extends AbstractBundle
 {
     public function configure(DefinitionConfigurator $definition): void
     {
-        // No config (yet)
+        // No configuration required at this time
     }
 
     public function loadExtension(
@@ -26,23 +33,22 @@ final class SurvosJsonlBundle extends AbstractBundle
     ): void {
         $services = $container->services();
 
-        // Profiler concrete service
+        // Register JsonlProfiler service with interface alias
         $services
             ->set(JsonlProfiler::class)
             ->autowire()
             ->autoconfigure();
 
-        // Alias interface -> implementation
         $builder
             ->setAlias(JsonlProfilerInterface::class, JsonlProfiler::class)
             ->setPublic(false);
 
-        // JsonlReader: we allow autowire by concrete class
+        // Register JsonlReader service with interface alias
         $services
             ->set(JsonlReader::class)
             ->autowire()
             ->autoconfigure();
-// Optional: alias interface to concrete
+
         $builder
             ->setAlias(JsonlReaderInterface::class, JsonlReader::class)
             ->setPublic(false);
