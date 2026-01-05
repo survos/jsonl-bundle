@@ -4,10 +4,20 @@ declare(strict_types=1);
 namespace Survos\JsonlBundle\IO;
 
 use Survos\JsonlBundle\Contract\JsonlWriterInterface;
+use Survos\JsonlBundle\Service\SidecarService;
+use Survos\JsonlBundle\Util\Jsonl;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Lock\LockInterface;
+use Symfony\Component\Lock\Store\FlockStore;
 
 /**
  * Append JSON-encoded rows to JSONL (.jsonl or .jsonl.gz).
- * Maintains a boolean index "<file>.idx.json" keyed by $tokenCode to avoid duplicates.
+ *
+ * Features:
+ *  - Transparent gzip when filename ends with .gz/.gzip
+ *  - Symfony Lock component to prevent concurrent writers corrupting output
+ *  - Optional token de-dup index "<file>.idx.json" keyed by $tokenCode
+ *  - Progress sidecar "<file>.sidecar.json" (rows, bytes, timestamps, completed)
  */
 final class JsonlWriter implements JsonlWriterInterface
 {
@@ -21,62 +31,56 @@ final class JsonlWriter implements JsonlWriterInterface
     /** @var array<string,bool> */
     private array $index = [];
 
+    private readonly SidecarService $sidecar;
+
+    private ?LockInterface $lock = null;
+
     public function __construct(string $filename)
     {
         $this->filename  = $filename;
-        $this->gzip      = str_ends_with($filename, '.gz');
+        $this->gzip      = Jsonl::isGzipPath($filename);
         $this->indexFile = $filename . '.idx.json';
+        $this->sidecar   = new SidecarService();
     }
 
     public static function open(string $filename, bool $createDirs = true, int $dirPerms = 0o775): self
     {
-        $self = new self($filename);
-
-        $dir = \dirname($filename);
-        if (!\is_dir($dir)) {
-            if ($createDirs) {
-                if (!\mkdir($dir, $dirPerms, true) && !\is_dir($dir)) {
-                    throw new \RuntimeException("Cannot create directory: $dir");
+        if ($createDirs) {
+            $dir = \dirname($filename);
+            if (!\is_dir($dir)) {
+                if (!@\mkdir($dir, $dirPerms, true) && !\is_dir($dir)) {
+                    throw new \RuntimeException(sprintf('Unable to create directory "%s".', $dir));
                 }
-            } else {
-                throw new \RuntimeException("Parent directory does not exist: $dir (pass \$createDirs=true to auto-create)");
             }
         }
 
-        // Preload index if present
-        if (\is_file($self->indexFile)) {
-            $decoded = \json_decode((string)\file_get_contents($self->indexFile), true);
-            $self->index = \is_array($decoded) ? $decoded : [];
-        }
+        $writer = new self($filename);
 
-        // Open file handle
-        if ($self->gzip) {
-            if (!\function_exists('gzopen')) {
-                throw new \RuntimeException('zlib not available: cannot write gzip file ' . $filename);
-            }
-            $self->fh = \gzopen($filename, 'ab9');
-        } else {
-            $self->fh = \fopen($filename, 'ab');
-        }
-        if (!$self->fh) {
-            throw new \RuntimeException("Cannot open $filename for appending");
-        }
+        $writer->acquireLock();
+        $writer->openHandle();
+        $writer->loadIndex();
 
-        return $self;
+        // Ensure sidecar exists (startedAt/updatedAt).
+        $writer->sidecar->touch($filename, 0, 0);
+
+        return $writer;
     }
 
+    /**
+     * Write a row. If $tokenCode is provided and already present in the index, the row is skipped.
+     */
     public function write(array $row, ?string $tokenCode = null): void
     {
         if ($tokenCode !== null) {
             if (isset($this->index[$tokenCode])) {
-                return; // already written
+                return;
             }
             $this->index[$tokenCode] = true;
         }
 
         $json = \json_encode($row, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
         if ($json === false) {
-            throw new \RuntimeException('Failed to encode row as JSON');
+            throw new \RuntimeException('JSON encode failed.');
         }
 
         $line = $json . "\n";
@@ -86,21 +90,20 @@ final class JsonlWriter implements JsonlWriterInterface
             : \fwrite($this->fh, $line);
 
         if ($bytes === false) {
-            throw new \RuntimeException("Failed writing to {$this->filename}");
+            throw new \RuntimeException(sprintf('Failed writing to "%s".', $this->filename));
         }
+
+        $this->sidecar->touch($this->filename, rowsDelta: 1, bytesDelta: (int)$bytes);
+    }
+
+    public function markComplete(): void
+    {
+        $this->sidecar->markComplete($this->filename);
     }
 
     public function close(): void
     {
-        // Persist index alongside final
-        $json = \json_encode($this->index, \JSON_PRETTY_PRINT);
-        if ($json === false) {
-            throw new \RuntimeException('Failed to encode index JSON');
-        }
-
-        if (\file_put_contents($this->indexFile, $json) === false) {
-            throw new \RuntimeException("Failed writing index file: {$this->indexFile}");
-        }
+        $this->saveIndex();
 
         if (\is_resource($this->fh)) {
             if ($this->gzip) {
@@ -110,17 +113,107 @@ final class JsonlWriter implements JsonlWriterInterface
             }
             $this->fh = null;
         }
+
+        $this->releaseLock();
     }
 
     public function __destruct()
     {
-        if (\is_resource($this->fh)) {
+        if (\is_resource($this->fh) || $this->lock !== null) {
             try {
                 $this->close();
             } catch (\Throwable $e) {
                 // Avoid throwing in destructors; log instead.
                 \error_log('JsonlWriter destructor error: ' . $e->getMessage());
             }
+        }
+    }
+
+    private function openHandle(): void
+    {
+        $this->fh = $this->gzip
+            ? @\gzopen($this->filename, 'ab9')
+            : @\fopen($this->filename, 'ab');
+
+        if ($this->fh === false || $this->fh === null) {
+            throw new \RuntimeException(sprintf('Unable to open "%s" for writing.', $this->filename));
+        }
+    }
+
+    private function acquireLock(): void
+    {
+        // Use a file-based store in the same directory as the target file.
+        $dir = \dirname($this->filename);
+        if (!\is_dir($dir)) {
+            @\mkdir($dir, 0o775, true);
+        }
+
+        $store   = new FlockStore($dir);
+        $factory = new LockFactory($store);
+
+        // Stable, filesystem-safe name derived from the filename.
+        $name = 'jsonl_' . \sha1($this->filename);
+
+        $this->lock = $factory->createLock($name);
+
+        // Blocking lock; if you want a timeout, change to acquire(true) + retry logic.
+        if (!$this->lock->acquire(true)) {
+            throw new \RuntimeException(sprintf('Unable to acquire lock for "%s".', $this->filename));
+        }
+    }
+
+    private function releaseLock(): void
+    {
+        if ($this->lock !== null) {
+            try {
+                $this->lock->release();
+            } finally {
+                $this->lock = null;
+            }
+        }
+    }
+
+    private function loadIndex(): void
+    {
+        if (!\is_file($this->indexFile)) {
+            $this->index = [];
+            return;
+        }
+
+        $raw = @\file_get_contents($this->indexFile);
+        if ($raw === false || \trim($raw) === '') {
+            $this->index = [];
+            return;
+        }
+
+        $decoded = \json_decode($raw, true);
+        $this->index = \is_array($decoded) ? $decoded : [];
+    }
+
+    private function saveIndex(): void
+    {
+        if ($this->index === []) {
+            return;
+        }
+
+        $json = \json_encode($this->index, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode index JSON');
+        }
+
+        $dir = \dirname($this->indexFile);
+        if (!\is_dir($dir)) {
+            @\mkdir($dir, 0o775, true);
+        }
+
+        $tmp = $this->indexFile . '.tmp';
+        if (@\file_put_contents($tmp, $json) === false) {
+            throw new \RuntimeException(sprintf('Failed writing index tmp file "%s".', $tmp));
+        }
+
+        if (!@\rename($tmp, $this->indexFile)) {
+            @\unlink($tmp);
+            throw new \RuntimeException(sprintf('Failed atomically replacing index file "%s".', $this->indexFile));
         }
     }
 }

@@ -21,10 +21,17 @@ interface JsonlWriterInterface
     /**
      * Write a single row (array/object) as one line.
      * If $tokenCode is provided, duplicate rows are skipped
-     * and tracked in a sidecar index (<file>.idx.json).
+     * and tracked in an on-disk index (<file>.idx.json).
      */
     public function write(array $row, ?string $tokenCode = null): void;
 
-    /** Flush and close handles; persist any side indexes. */
+    /**
+     * Mark the stream as complete in the sidecar metadata.
+     *
+     * This does not close the writer; call close() when finished.
+     */
+    public function markComplete(): void;
+
+    /** Flush and close handles; persist any side indexes/metadata. */
     public function close(): void;
 }

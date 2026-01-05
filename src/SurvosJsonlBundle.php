@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle;
 
+use Survos\JsonlBundle\Command\JsonlCountCommand;
 use Survos\JsonlBundle\IO\JsonlReader;
 use Survos\JsonlBundle\IO\JsonlReaderInterface;
+use Survos\JsonlBundle\Service\JsonlCountService;
 use Survos\JsonlBundle\Service\JsonlProfiler;
 use Survos\JsonlBundle\Service\JsonlProfilerInterface;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
@@ -33,11 +35,20 @@ final class SurvosJsonlBundle extends AbstractBundle
     ): void {
         $services = $container->services();
 
-        // Register JsonlProfiler service with interface alias
-        $services
-            ->set(JsonlProfiler::class)
+        $services->set(JsonlCountCommand::class)
             ->autowire()
-            ->autoconfigure();
+            ->autoconfigure()
+            ->public()
+            ->tag('console.command');
+
+        foreach([JsonlProfiler::class, JsonlCountService::class] as $service) {
+            $services
+                ->set($service)
+                ->autowire()
+                ->autoconfigure();
+
+        }
+
 
         $builder
             ->setAlias(JsonlProfilerInterface::class, JsonlProfiler::class)
