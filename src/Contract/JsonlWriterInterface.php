@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Contract;
 
+use Survos\JsonlBundle\Model\JsonlWriterResult;
+
 /**
  * Append one JSON-encoded record per line to a .jsonl or .jsonl.gz file.
  */
@@ -28,9 +30,16 @@ interface JsonlWriterInterface
     /**
      * Mark the stream as complete in the sidecar metadata.
      *
-     * This does not close the writer; call close() when finished.
+     * This does not close the writer; call close() when finished,
+     * or prefer finish().
      */
     public function markComplete(): void;
+
+    /**
+     * Application-friendly completion:
+     * optionally marks complete, closes the writer, and returns typed JSONL state.
+     */
+    public function finish(bool $markComplete = true): JsonlWriterResult;
 
     /** Flush and close handles; persist any side indexes/metadata. */
     public function close(): void;

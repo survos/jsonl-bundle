@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Survos\JsonlBundle\IO;
 
 use Survos\JsonlBundle\Contract\JsonlWriterInterface;
+use Survos\JsonlBundle\Model\JsonlWriterResult;
+use Survos\JsonlBundle\Service\JsonlStateRepository;
 use Survos\JsonlBundle\Service\SidecarService;
 use Survos\JsonlBundle\Util\Jsonl;
 use Symfony\Component\Lock\LockFactory;
@@ -17,7 +19,9 @@ use Symfony\Component\Lock\Store\FlockStore;
  *  - Transparent gzip when filename ends with .gz/.gzip
  *  - Symfony Lock component to prevent concurrent writers corrupting output
  *  - Optional token de-dup index "<file>.idx.json" keyed by $tokenCode
- *  - Progress sidecar "<file>.sidecar.json" (rows, bytes, timestamps, completed)
+ *  - Progress sidecar "<file>.sidecar.json" (rows, bytes, timestamps, completed, jsonl_mtime, jsonl_size)
+ *
+ * SidecarService is an internal persistence mechanism. Applications should use JsonlStateRepository.
  */
 final class JsonlWriter implements JsonlWriterInterface
 {
@@ -60,8 +64,8 @@ final class JsonlWriter implements JsonlWriterInterface
         $writer->openHandle();
         $writer->loadIndex();
 
-        // Ensure sidecar exists (startedAt/updatedAt).
-        $writer->sidecar->touch($filename, 0, 0);
+        // Ensure sidecar exists (startedAt/updatedAt) and capture file facts.
+        $writer->sidecar->touch($filename, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
 
         return $writer;
     }
@@ -93,12 +97,28 @@ final class JsonlWriter implements JsonlWriterInterface
             throw new \RuntimeException(sprintf('Failed writing to "%s".', $this->filename));
         }
 
-        $this->sidecar->touch($this->filename, rowsDelta: 1, bytesDelta: (int)$bytes);
+        // Update sidecar counters and capture deterministic file facts.
+        $this->sidecar->touch($this->filename, rowsDelta: 1, bytesDelta: (int) $bytes, captureFileFacts: true);
     }
 
     public function markComplete(): void
     {
-        $this->sidecar->markComplete($this->filename);
+        $this->sidecar->markComplete($this->filename, captureFileFacts: true);
+    }
+
+    public function finish(bool $markComplete = true): JsonlWriterResult
+    {
+        if ($markComplete) {
+            $this->markComplete();
+        }
+
+        $this->close();
+
+        // Return an application-facing snapshot; no sidecar service exposure.
+        $repo  = new JsonlStateRepository($this->sidecar);
+        $state = $repo->load($this->filename);
+
+        return new JsonlWriterResult($state);
     }
 
     public function close(): void

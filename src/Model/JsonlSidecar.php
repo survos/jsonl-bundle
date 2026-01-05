@@ -4,44 +4,86 @@ declare(strict_types=1);
 namespace Survos\JsonlBundle\Model;
 
 /**
- * Lightweight progress metadata for a JSONL artifact.
+ * Serialized to <file>.sidecar.json via SidecarService.
  *
- * Stored as JSON next to the target file, typically:
- *   <file>.sidecar.json
+ * Public mutable properties are intentional: SidecarService updates in-place while streaming.
  */
 final class JsonlSidecar
 {
     public function __construct(
-        public int $version = 1,
+        public ?string $startedAt = null,
+        public ?string $updatedAt = null,
         public int $rows = 0,
         public int $bytes = 0,
         public bool $completed = false,
-        public ?string $startedAt = null,
-        public ?string $updatedAt = null,
-    ) {}
-
-    public static function fromArray(array $data): self
-    {
-        $sc = new self();
-        $sc->version = (int)($data['version'] ?? 1);
-        $sc->rows = (int)($data['rows'] ?? 0);
-        $sc->bytes = (int)($data['bytes'] ?? 0);
-        $sc->completed = (bool)($data['completed'] ?? false);
-        $sc->startedAt = isset($data['startedAt']) ? (string)$data['startedAt'] : null;
-        $sc->updatedAt = isset($data['updatedAt']) ? (string)$data['updatedAt'] : null;
-
-        return $sc;
+        public ?int $jsonl_mtime = null,
+        public ?int $jsonl_size = null,
+    ) {
     }
 
+    /**
+     * @return array<string,mixed>
+     */
     public function toArray(): array
     {
         return [
-            'version' => $this->version,
+            'startedAt' => $this->startedAt,
+            'updatedAt' => $this->updatedAt,
             'rows' => $this->rows,
             'bytes' => $this->bytes,
             'completed' => $this->completed,
-            'startedAt' => $this->startedAt,
-            'updatedAt' => $this->updatedAt,
+            // Deterministic freshness fields (optional but recommended)
+            'jsonl_mtime' => $this->jsonl_mtime,
+            'jsonl_size' => $this->jsonl_size,
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        $startedAt = \is_string($data['startedAt'] ?? null) ? $data['startedAt'] : (\is_string($data['started_at'] ?? null) ? $data['started_at'] : null);
+        $updatedAt = \is_string($data['updatedAt'] ?? null) ? $data['updatedAt'] : (\is_string($data['updated_at'] ?? null) ? $data['updated_at'] : null);
+
+        $rows = self::asInt($data['rows'] ?? 0);
+        $bytes = self::asInt($data['bytes'] ?? 0);
+
+        $completed = \is_bool($data['completed'] ?? null) ? $data['completed'] : false;
+
+        $mtime = self::asNullableInt($data['jsonl_mtime'] ?? null);
+        $size  = self::asNullableInt($data['jsonl_size'] ?? null);
+
+        return new self(
+            startedAt: $startedAt,
+            updatedAt: $updatedAt,
+            rows: $rows,
+            bytes: $bytes,
+            completed: $completed,
+            jsonl_mtime: $mtime,
+            jsonl_size: $size,
+        );
+    }
+
+    private static function asInt(mixed $v): int
+    {
+        if (\is_int($v)) {
+            return $v;
+        }
+        if (\is_string($v) && $v !== '' && \ctype_digit($v)) {
+            return (int) $v;
+        }
+        return 0;
+    }
+
+    private static function asNullableInt(mixed $v): ?int
+    {
+        if (\is_int($v)) {
+            return $v;
+        }
+        if (\is_string($v) && $v !== '' && \ctype_digit($v)) {
+            return (int) $v;
+        }
+        return null;
     }
 }

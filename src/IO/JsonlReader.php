@@ -6,6 +6,8 @@ namespace Survos\JsonlBundle\IO;
 use RuntimeException;
 use Traversable;
 use Survos\JsonlBundle\Contract\JsonlReaderInterface as ContractJsonlReaderInterface;
+use Survos\JsonlBundle\Service\JsonlStateRepository;
+use Survos\JsonlBundle\Model\JsonlState;
 use Survos\JsonlBundle\Util\Jsonl;
 
 /**
@@ -31,6 +33,12 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
     public function path(): string
     {
         return $this->path;
+    }
+
+    public function state(?JsonlStateRepository $repo = null): JsonlState
+    {
+        $repo ??= new JsonlStateRepository();
+        return $repo->load($this->path);
     }
 
     /**

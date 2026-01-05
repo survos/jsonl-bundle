@@ -574,6 +574,7 @@ This bundle is intentionally small at the surface but powerful in real-world pip
 
 For production patterns—including **resume semantics**, **sidecar files**, **row counting**, **CLI workflows**, and **anti-patterns to avoid**—see the advanced documentation:
 
+👉 **[More examples](doc/basic.md)**
 👉 **[Advanced Usage Guide](doc/advanced.md)**
 
 That document is where long-running jobs, API dumps, and restartable ingestion pipelines are covered in detail.

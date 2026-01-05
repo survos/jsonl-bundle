@@ -8,6 +8,8 @@ use Survos\JsonlBundle\Command\JsonlInfoCommand;
 use Survos\JsonlBundle\Service\JsonlCountService;
 use Survos\JsonlBundle\Service\JsonlProfiler;
 use Survos\JsonlBundle\Service\JsonlProfilerInterface;
+use Survos\JsonlBundle\Service\JsonlSidecarNamer;
+use Survos\JsonlBundle\Service\JsonlStateRepository;
 use Survos\JsonlBundle\Service\SidecarService;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -50,6 +52,16 @@ final class SurvosJsonlBundle extends AbstractBundle
 
         $services
             ->set(JsonlInfoCommand::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlStateRepository::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlSidecarNamer::class)
             ->autowire()
             ->autoconfigure();
 

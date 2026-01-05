@@ -301,6 +301,92 @@ If you deviate, you are on your own.
 
 ---
 
+# Advanced: Sidecars and JSONL State
+
+## Why sidecars exist
+
+JSONL is streaming-friendly, but applications often need lightweight answers to:
+
+- How many rows are currently written?
+- How many bytes have been written?
+- When was the file last updated?
+- Was the file “completed” by the writer?
+- Is the cached metadata stale vs the current JSONL file?
+
+The sidecar (`<file>.sidecar.json`) is designed to answer those questions without scanning JSONL.
+
+## App-facing API: JsonlStateRepository
+
+Applications should not depend on writer internals like `getSidecar()`.
+
+Instead, use:
+
+- `JsonlStateRepository` to load/refresh state
+- `JsonlStateInterface` / `JsonlStatsInterface` to consume it
+
+### Freshness model
+
+A sidecar is considered “fresh” when:
+
+- the sidecar exists
+- the JSONL exists
+- and the sidecar’s recorded `jsonl_mtime` and `jsonl_size` match the JSONL file’s current values
+
+If those fields are missing, `isFresh()` returns false so your application can refresh deterministically.
+
+### Recommended usage
+
+1. `load()` (cheap; reads sidecar if present)
+2. `isFresh()` check
+3. `refresh()` when needed
+
+```php
+$state = $repo->load($path);
+
+if (!$state->isFresh()) {
+    $state = $repo->refresh($path);
+}
+```
+
+## Writer completion
+
+`JsonlWriter::finish()` is the preferred application entry point for “I am done writing and want state”.
+
+It:
+
+- optionally `markComplete()`
+- calls `close()`
+- refreshes state
+- returns a `JsonlWriterResult` containing `JsonlStateInterface`
+
+This avoids ad-hoc patterns such as:
+
+- counting lines in application code
+- reading `.sidecar.json` directly
+- calling `$writer->getSidecar()` (which is a low-level internal service, not an API contract)
+
+## Sidecar schema notes
+
+This repository assumes your `SidecarService` writes the following keys (common pattern):
+
+- `rows`
+- `bytes`
+- `startedAt` or `started_at`
+- `updatedAt` or `updated_at`
+- `completed`
+
+It also persists additional validation keys on refresh:
+
+- `jsonl_mtime`
+- `jsonl_size`
+
+If your `SidecarService` uses different field names, update the single mapping method:
+
+- `JsonlStateRepository::statsFromSidecarPayload()`
+
+That keeps the rest of the API stable.
+
+
 ## Summary
 
 * Use sidecars
