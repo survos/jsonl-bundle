@@ -19,7 +19,7 @@ use Survos\JsonlBundle\Util\Jsonl;
 final class JsonlCountService
 {
     public function __construct(
-        private readonly SidecarService $sidecarService = new SidecarService(),
+        private readonly SidecarService $sidecarService,
     ) {}
 
     /**

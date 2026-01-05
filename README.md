@@ -502,7 +502,79 @@ You are **materializing data**.
 
 That distinction is why JsonlBundle scales cleanly from demos to production pipelines.
 
-## Advanced
+## Inspecting JSONL Files (`jsonl:info`)
 
-For production patterns, resume semantics, and CLI workflows, see the
+In addition to counting rows, JsonlBundle provides a command to **inspect progress and status metadata** stored in sidecar files.
+
+### Show info for a single file
+
+```bash
+bin/console jsonl:info data/products.jsonl
+```
+
+Example output:
+
+```
+JSONL info
+──────────
+File:             data/products.jsonl
+Rows:             12450
+Sidecar:          data/products.jsonl.sidecar.json
+Sidecar exists:   yes
+Completed:        no
+Started:          2026-01-05T14:03:21+00:00
+Updated:          2026-01-05T14:22:09+00:00
+Bytes (sidecar):  98234112
+```
+
+This is the fastest way to answer questions like:
+
+* “How many records are written so far?”
+* “Did this pipeline finish?”
+* “When was this dataset last updated?”
+
+---
+
+### Inspect a directory of JSONL files
+
+```bash
+bin/console jsonl:info var/data
+```
+
+### Recurse into subdirectories
+
+```bash
+bin/console jsonl:info var/data -r
+```
+
+Directory mode renders a table with one row per file, including completion status and timestamps:
+
+| Rows | Complete | Updated | Started | File |
+|----:|:--------:|---------|---------|------|
+| 170072 | no | 2026-01-05T14:22:09 | 2026-01-05T14:03:21 | place.jsonl |
+| 3340 | yes | 2026-01-05T13:01:44 | 2026-01-05T12:58:10 | concept.jsonl |
+| … | … | … | … | … |
+
+---
+
+### Why `jsonl:info` matters
+
+* Uses **sidecar metadata**, not slow file scans
+* Works for `.jsonl` and `.jsonl.gz`
+* Distinguishes **partial** vs **completed** datasets
+* Ideal for long-running or resumable pipelines
+
+For deeper discussion of sidecars, resume logic, and CLI workflows, see the
 [advanced usage guide](doc/advanced.md).
+
+
+## Advanced Usage
+
+This bundle is intentionally small at the surface but powerful in real-world pipelines.
+
+For production patterns—including **resume semantics**, **sidecar files**, **row counting**, **CLI workflows**, and **anti-patterns to avoid**—see the advanced documentation:
+
+👉 **[Advanced Usage Guide](doc/advanced.md)**
+
+That document is where long-running jobs, API dumps, and restartable ingestion pipelines are covered in detail.
+

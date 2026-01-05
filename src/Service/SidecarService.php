@@ -8,14 +8,19 @@ use Survos\JsonlBundle\Model\JsonlSidecar;
 /**
  * Manages JSONL sidecar progress metadata.
  *
- * This is intentionally filesystem-only (no Doctrine, no cache pools),
- * so it remains usable in CLI pipelines and long-running jobs.
+ * Stored as JSON next to the target file:
+ *   <file>.sidecar.json
  */
 final class SidecarService
 {
     public function sidecarPath(string $jsonlPath): string
     {
         return $jsonlPath . '.sidecar.json';
+    }
+
+    public function exists(string $jsonlPath): bool
+    {
+        return is_file($this->sidecarPath($jsonlPath));
     }
 
     public function load(string $jsonlPath): JsonlSidecar
@@ -43,7 +48,7 @@ final class SidecarService
 
         $data = json_decode($raw, true);
         if (!is_array($data)) {
-            // If corrupted, start fresh rather than breaking the pipeline.
+            // If corrupted, start fresh rather than breaking pipelines.
             $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
 
             return new JsonlSidecar(

@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace Survos\JsonlBundle\Command;
 
 use Survos\JsonlBundle\Service\JsonlCountService;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Argument;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -38,7 +38,6 @@ final class JsonlCountCommand
             $rows[] = [(string) $count, $path];
 
             $io->table(['Rows', 'File'], $rows);
-
             return Command::SUCCESS;
         }
 
@@ -70,10 +69,9 @@ final class JsonlCountCommand
             return Command::SUCCESS;
         }
 
-        // Sort descending by row count (optional but nice)
-        usort($rows, static fn(array $a, array $b) => (int)$b[0] <=> (int)$a[0]);
+        // Sort descending by rows (nicer for real datasets)
+        usort($rows, static fn(array $a, array $b) => (int) $b[0] <=> (int) $a[0]);
 
-        // Add total row
         $rows[] = [(string) $total, 'TOTAL'];
 
         $io->table(['Rows', 'File'], $rows);
