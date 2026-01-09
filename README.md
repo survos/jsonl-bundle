@@ -169,11 +169,7 @@ The reader:
 ### Read with Offset (Resume Processing)
 
 ```php
-$reader = new JsonlReader(
-    filename: 'data/products.jsonl',
-    offset: 5000
-);
-
+$reader = new JsonlReader('data/products.jsonl');
 foreach ($reader as $row) {
     // Continue processing after record 5000
 }
@@ -220,10 +216,19 @@ You do **not** manage this manually.
 ```php
 use Survos\JsonlBundle\Model\JsonlSidecar;
 
-$sidecar = JsonlSidecar::fromFilename('data/products.jsonl');
+$repo  = new JsonlStateRepository();
+$state = $repo->load('data/products.jsonl');
 
-echo $sidecar->rows;       // 12450
-echo $sidecar->completed; // false
+$stats = $state->getStats();
+
+$rows      = $stats->getRows();
+$bytes     = $stats->getBytes();
+$completed = $stats->isCompleted();
+
+if (!$state->isFresh()) {
+    // JSONL changed outside of JsonlWriter
+    // decide whether to trust, refresh, or regenerate
+}
 ```
 
 ---
@@ -235,7 +240,7 @@ $writer = JsonlWriter::open('data/products.jsonl');
 
 // write rows...
 
-$writer->markCompleted();
+$writer->markComplete();
 $writer->close();
 ```
 

@@ -5,6 +5,7 @@ namespace Survos\JsonlBundle;
 
 use Survos\JsonlBundle\Command\JsonlCountCommand;
 use Survos\JsonlBundle\Command\JsonlInfoCommand;
+use Survos\JsonlBundle\Command\JsonlStateCommand;
 use Survos\JsonlBundle\Service\JsonlCountService;
 use Survos\JsonlBundle\Service\JsonlProfiler;
 use Survos\JsonlBundle\Service\JsonlProfilerInterface;
@@ -51,17 +52,17 @@ final class SurvosJsonlBundle extends AbstractBundle
             ->autoconfigure();
 
         $services
+            ->set(JsonlStateCommand::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
             ->set(JsonlInfoCommand::class)
             ->autowire()
             ->autoconfigure();
 
         $services
             ->set(JsonlStateRepository::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlSidecarNamer::class)
             ->autowire()
             ->autoconfigure();
 

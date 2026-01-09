@@ -6,8 +6,8 @@ namespace Survos\JsonlBundle\IO;
 use RuntimeException;
 use Traversable;
 use Survos\JsonlBundle\Contract\JsonlReaderInterface as ContractJsonlReaderInterface;
-use Survos\JsonlBundle\Service\JsonlStateRepository;
 use Survos\JsonlBundle\Model\JsonlState;
+use Survos\JsonlBundle\Service\JsonlStateRepository;
 use Survos\JsonlBundle\Util\Jsonl;
 
 /**
@@ -16,6 +16,20 @@ use Survos\JsonlBundle\Util\Jsonl;
  * Supports both:
  *  - .jsonl
  *  - .jsonl.gz (transparent gzip)
+ *
+ * startAtLine semantics (as required by JsonlIoTest::*):
+ *  - startAtLine is 1-based
+ *  - it is a *hint that offsets yielded keys only*
+ *  - it does NOT skip any physical lines
+ *
+ * Example:
+ *  - file has 2 valid JSON lines
+ *  - startAtLine = 101
+ *  => yields keys [101, 102]
+ *
+ * Default:
+ *  - startAtLine = 1
+ *  => yields keys [1, 2, 3, ...]
  */
 final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInterface, \IteratorAggregate
 {
@@ -23,7 +37,12 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
 
     public function __construct(
         private readonly string $path,
-    ) {}
+        private readonly int $startAtLine = 1,
+    ) {
+        if ($this->startAtLine < 1) {
+            throw new \InvalidArgumentException('startAtLine must be >= 1');
+        }
+    }
 
     public static function open(string $filename): self
     {
@@ -88,6 +107,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
     public function getIterator(): Traversable
     {
         $gzip = Jsonl::isGzipPath($this->path);
+        $key  = $this->startAtLine;
 
         if ($gzip) {
             $handle = @gzopen($this->path, 'rb');
@@ -96,8 +116,6 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
             }
 
             try {
-                $index = 1;
-
                 while (!gzeof($handle)) {
                     $line = gzgets($handle);
                     if ($line === false) {
@@ -114,7 +132,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
                         continue;
                     }
 
-                    yield $index++ => $decoded;
+                    yield $key++ => $decoded;
                 }
             } finally {
                 gzclose($handle);
@@ -129,8 +147,6 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
         }
 
         try {
-            $index = 1;
-
             while (($line = fgets($handle)) !== false) {
                 $line = trim($line);
                 if ($line === '') {
@@ -142,7 +158,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
                     continue;
                 }
 
-                yield $index++ => $decoded;
+                yield $key++ => $decoded;
             }
         } finally {
             fclose($handle);

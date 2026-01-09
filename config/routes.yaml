@@ -1,5 +1,0 @@
-survos_jsonl:
-  type: attribute
-  resource:
-    path: '@SurvosJsonlBundle/src/Controller/'
-    namespace: Survos\JsonlBundle\Controller

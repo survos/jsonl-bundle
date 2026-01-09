@@ -68,9 +68,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
         $stats = [];
 
         foreach ($rows as $row) {
-            if (!\is_array($row)) {
-                continue;
-            }
+//            assert(is_array($row), "Row is not an array");
 
             foreach ($row as $field => $value) {
                 if (!\array_key_exists($field, $stats)) {
