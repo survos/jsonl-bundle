@@ -56,7 +56,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
      *   ]
      */
     public function __construct(
-        private readonly int $distinctCap = 50000,
+        private readonly int $distinctCap = 100000, // hack, we need to assume if it reaches this all unique then it is unique.
         private readonly int $sampleCap = 256,
         private readonly array $hints = [],
     ) {

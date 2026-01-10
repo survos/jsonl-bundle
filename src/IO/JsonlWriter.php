@@ -13,7 +13,7 @@ use Symfony\Component\Lock\LockInterface;
 use Symfony\Component\Lock\Store\FlockStore;
 
 /**
- * Append JSON-encoded rows to JSONL (.jsonl or .jsonl.gz).
+ * Write JSON-encoded rows to JSONL (.jsonl or .jsonl.gz).
  *
  * Features:
  *  - Transparent gzip when filename ends with .gz/.gzip
@@ -39,7 +39,18 @@ final class JsonlWriter implements JsonlWriterInterface
 
     private ?LockInterface $lock = null;
 
-    public function __construct(string $filename)
+    /** @var 'a'|'w' */
+    private string $mode = 'w';
+
+    /**
+     * @param array{
+     *   ensure_dir?: bool,
+     *   dir_perms?: int,
+     *   reset_sidecars?: bool,
+     *   lock?: bool
+     * } $options
+     */
+    public function __construct(string $filename, array $options = [])
     {
         $this->filename  = $filename;
         $this->gzip      = Jsonl::isGzipPath($filename);
@@ -47,28 +58,66 @@ final class JsonlWriter implements JsonlWriterInterface
         $this->sidecar   = new SidecarService();
     }
 
-    public static function open(string $filename, bool $createDirs = true, int $dirPerms = 0o775): self
+    /**
+     * Open (or create) a JSONL writer for the given path.
+     *
+     * $mode:
+     *  - 'w' = reset/truncate (default)
+     *  - 'a' = append
+     *
+     * Options:
+     *  - ensure_dir (bool) default true
+     *  - dir_perms (int) default 0775
+     *  - reset_sidecars (bool) default true (only relevant for mode 'w')
+     *  - lock (bool) default true
+     *
+     * @param array{
+     *   ensure_dir?: bool,
+     *   dir_perms?: int,
+     *   reset_sidecars?: bool,
+     *   lock?: bool
+     * }|null $options
+     */
+    public static function open(string $filename, string $mode = 'w', ?JsonlWriterOptions $options = null): self
     {
-        if ($createDirs) {
+        $options ??= JsonlWriterOptions::defaults();
+
+        $mode = \strtolower($mode);
+        if (!\in_array($mode, ['a', 'w'], true)) {
+            throw new \InvalidArgumentException(sprintf('Invalid JsonlWriter mode "%s". Expected "a" or "w".', $mode));
+        }
+
+        if ($options->ensureDir) {
             $dir = \dirname($filename);
             if (!\is_dir($dir)) {
-                if (!@\mkdir($dir, $dirPerms, true) && !\is_dir($dir)) {
+                if (!\mkdir($dir, $options->dirPerms, true) && !\is_dir($dir)) {
                     throw new \RuntimeException(sprintf('Unable to create directory "%s".', $dir));
                 }
             }
         }
 
         $writer = new self($filename);
+        $writer->mode = $mode;
 
-        $writer->acquireLock();
+        if ($options->useLock) {
+            $writer->acquireLock();
+        }
+
+        if ($mode === 'w') {
+            if ($options->resetSidecars) {
+                $writer->resetSidecars();
+            }
+            $writer->index = [];
+        } else {
+            $writer->loadIndex();
+        }
+
         $writer->openHandle();
-        $writer->loadIndex();
-
-        // Ensure sidecar exists (startedAt/updatedAt) and capture file facts.
         $writer->sidecar->touch($filename, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
 
         return $writer;
     }
+
 
     /**
      * Write a row. If $tokenCode is provided and already present in the index, the row is skipped.
@@ -123,6 +172,7 @@ final class JsonlWriter implements JsonlWriterInterface
 
     public function close(): void
     {
+        // Persist token index only if it was used.
         $this->saveIndex();
 
         if (\is_resource($this->fh)) {
@@ -151,12 +201,17 @@ final class JsonlWriter implements JsonlWriterInterface
 
     private function openHandle(): void
     {
+        // fopen/gzopen modes:
+        //  - 'a' (append) or 'w' (truncate)
+        $plainMode = ($this->mode === 'a') ? 'ab' : 'wb';
+        $gzipMode  = ($this->mode === 'a') ? 'ab9' : 'wb9';
+
         $this->fh = $this->gzip
-            ? @\gzopen($this->filename, 'ab9')
-            : @\fopen($this->filename, 'ab');
+            ? @\gzopen($this->filename, $gzipMode)
+            : @\fopen($this->filename, $plainMode);
 
         if ($this->fh === false || $this->fh === null) {
-            throw new \RuntimeException(sprintf('Unable to open "%s" for writing.', $this->filename));
+            throw new \RuntimeException(sprintf('Unable to open "%s" for writing (mode=%s).', $this->filename, $this->mode));
         }
     }
 
@@ -189,6 +244,22 @@ final class JsonlWriter implements JsonlWriterInterface
                 $this->lock->release();
             } finally {
                 $this->lock = null;
+            }
+        }
+    }
+
+    private function resetSidecars(): void
+    {
+        // Known sidecars/indexes we may have created historically.
+        $candidates = [
+            $this->indexFile,                 // <file>.idx.json
+            $this->filename . '.sidecar.json',// <file>.sidecar.json
+            $this->filename . '.index.json',  // legacy naming you referenced
+        ];
+
+        foreach ($candidates as $path) {
+            if (\is_file($path)) {
+                @\unlink($path);
             }
         }
     }

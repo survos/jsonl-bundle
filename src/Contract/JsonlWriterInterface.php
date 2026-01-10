@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Contract;
 
+use Survos\JsonlBundle\IO\JsonlWriterOptions;
 use Survos\JsonlBundle\Model\JsonlWriterResult;
 
 /**
@@ -18,7 +19,11 @@ interface JsonlWriterInterface
      * @param bool   $createDirs If true, ensure parent directory exists (default: true)
      * @param int    $dirPerms   Mode for created directories (default: 0775)
      */
-    public static function open(string $filename, bool $createDirs = true, int $dirPerms = 0o775): self;
+    public static function open(
+        string $filename,
+        string $mode = 'w',
+        ?JsonlWriterOptions $options = null
+    ): self;
 
     /**
      * Write a single row (array/object) as one line.

@@ -60,12 +60,20 @@ No flags. No config. Just naming.
 
 ## Writing JSONL
 
-### Basic Write
+### Basic Write (Overwrite by Default)
+
+By default, `JsonlWriter::open()` uses **overwrite mode (`'w'`)**, matching PHP’s `fopen()` semantics.
+
+This means:
+
+* Existing files are truncated
+* Sidecar state is reset
+* You are explicitly starting a new dataset
 
 ```php
 use Survos\JsonlBundle\IO\JsonlWriter;
 
-$writer = JsonlWriter::open('data/products.jsonl');
+$writer = JsonlWriter::open('data/products.jsonl'); // mode: 'w'
 
 $writer->write([
     'id' => 1,
@@ -84,10 +92,24 @@ This immediately gives you:
 
 ---
 
-### Appending Multiple Records
+### Append vs Overwrite
+
+JsonlBundle makes **dataset intent explicit** via write modes.
+
+* `'w'` — overwrite (default): start a fresh dataset
+* `'a'` — append: continue an existing dataset
+
+#### Append to an Existing Dataset
+
+Use append mode when resuming or extending a JSONL file:
 
 ```php
-$writer = JsonlWriter::open('data/products.jsonl');
+use Survos\JsonlBundle\IO\JsonlWriter;
+
+$writer = JsonlWriter::open(
+    'data/products.jsonl',
+    'a', // append
+);
 
 foreach ($products as $product) {
     $writer->write($product);
@@ -96,16 +118,51 @@ foreach ($products as $product) {
 $writer->close();
 ```
 
+Append mode:
+
+* Preserves existing data
+* Resumes safely using the sidecar
+* Is safe to re-run after partial failure
+
+---
+
+#### Overwrite an Existing Dataset
+
+Overwrite mode is intentional and destructive:
+
+```php
+use Survos\JsonlBundle\IO\JsonlWriter;
+
+$writer = JsonlWriter::open(
+    'data/products.jsonl',
+    'w', // overwrite
+);
+
+$writer->write(['id' => 1, 'name' => 'Widget']);
+$writer->close();
+```
+
+Overwrite mode:
+
+* Truncates the file
+* Resets sidecar state
+* Signals a brand-new dataset
+
 No buffering required. Memory-safe for large datasets.
 
 ---
 
 ### Resume a Partial Write
 
-If the process crashes midway, simply reopen the same file:
+If the process crashes midway, reopen the file in **append mode**:
 
 ```php
-$writer = JsonlWriter::open('data/products.jsonl');
+use Survos\JsonlBundle\IO\JsonlWriter;
+
+$writer = JsonlWriter::open(
+    'data/products.jsonl',
+    'a', // resume
+);
 
 foreach ($remainingProducts as $product) {
     $writer->write($product);
@@ -124,10 +181,15 @@ The writer will:
 
 ### Writing with Gzip Compression
 
-Just use `.gz`:
+Just use `.gz` — mode semantics are unchanged:
 
 ```php
-$writer = JsonlWriter::open('data/products.jsonl.gz');
+use Survos\JsonlBundle\IO\JsonlWriter;
+
+$writer = JsonlWriter::open(
+    'data/products.jsonl.gz',
+    'w', // overwrite (default)
+);
 
 $writer->write([
     'id' => 1,
@@ -141,6 +203,44 @@ Features retained:
 * Resume
 * Sidecar
 * Locking
+
+---
+
+### Writer Options
+
+Advanced behavior is controlled via `JsonlWriterOptions`, passed as the **third argument** to `JsonlWriter::open()`.
+
+Options configure **policy**, not mechanics. Defaults are safe and explicit.
+
+#### Example: Overwrite and Ensure Directory Exists
+
+```php
+use Survos\JsonlBundle\IO\JsonlWriter;
+use Survos\JsonlBundle\IO\JsonlWriterOptions;
+
+$writer = JsonlWriter::open(
+    'var/data/products.jsonl',
+    'w',
+    new JsonlWriterOptions(
+        ensureDir: true,
+    ),
+);
+
+$writer->write($row);
+$writer->close();
+```
+
+In this example:
+
+* `'w'` signals a fresh dataset
+* `ensureDir: true` allows directory creation explicitly
+
+Avoid overwrite mode (`'w'`) for resumable pipelines. Append mode with sidecars is the intended default for long-running jobs.
+
+For the full list of writer options and their semantics, see:
+
+* `doc/basic.md`
+* `doc/advanced.md`
 
 ---
 
