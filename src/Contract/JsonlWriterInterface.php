@@ -16,8 +16,6 @@ interface JsonlWriterInterface
      * The file may be plain text (.jsonl) or gzipped (.jsonl.gz).
      *
      * @param string $filename   Target file path (.jsonl or .jsonl.gz)
-     * @param bool   $createDirs If true, ensure parent directory exists (default: true)
-     * @param int    $dirPerms   Mode for created directories (default: 0775)
      */
     public static function open(
         string $filename,

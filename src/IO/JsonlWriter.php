@@ -78,7 +78,11 @@ final class JsonlWriter implements JsonlWriterInterface
      *   lock?: bool
      * }|null $options
      */
-    public static function open(string $filename, string $mode = 'w', ?JsonlWriterOptions $options = null): self
+    public static function open(
+        string $filename,
+        string $mode = 'w',
+        ?JsonlWriterOptions $options = null,
+    ): self
     {
         $options ??= JsonlWriterOptions::defaults();
 
