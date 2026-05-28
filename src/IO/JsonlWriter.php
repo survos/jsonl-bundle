@@ -39,6 +39,8 @@ final class JsonlWriter implements JsonlWriterInterface
 
     private ?LockInterface $lock = null;
 
+    private ?string $lockFile = null;
+
     /** @var 'a'|'w' */
     private string $mode = 'w';
 
@@ -231,13 +233,18 @@ final class JsonlWriter implements JsonlWriterInterface
         $factory = new LockFactory($store);
 
         // Stable, filesystem-safe name derived from the filename.
-        $name = 'jsonl_' . \sha1($this->filename);
+        $name = "jsonl_" . \sha1($this->filename);
+        $this->lockFile = \sprintf("%s/sf.%s.%s.lock",
+            $dir,
+            \substr(\preg_replace("/[^a-z0-9\._-]+/i", "-", $name), 0, 50),
+            \strtr(\substr(\base64_encode(\hash("sha256", $name, true)), 0, 7), "/", "_")
+        );
 
         $this->lock = $factory->createLock($name);
 
         // Blocking lock; if you want a timeout, change to acquire(true) + retry logic.
         if (!$this->lock->acquire(true)) {
-            throw new \RuntimeException(sprintf('Unable to acquire lock for "%s".', $this->filename));
+            throw new \RuntimeException(\sprintf("Unable to acquire lock for \"%s\".", $this->filename));
         }
     }
 
@@ -248,6 +255,12 @@ final class JsonlWriter implements JsonlWriterInterface
                 $this->lock->release();
             } finally {
                 $this->lock = null;
+
+                if ($this->lockFile !== null && \is_file($this->lockFile)) {
+                    @\unlink($this->lockFile);
+                }
+
+                $this->lockFile = null;
             }
         }
     }
