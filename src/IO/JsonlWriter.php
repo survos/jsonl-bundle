@@ -5,8 +5,8 @@ namespace Survos\JsonlBundle\IO;
 
 use Survos\JsonlBundle\Contract\JsonlWriterInterface;
 use Survos\JsonlBundle\Model\JsonlWriterResult;
-use Survos\JsonlBundle\Service\JsonlStateRepository;
-use Survos\JsonlBundle\Service\SidecarService;
+use Survos\JsonlBundle\Service\JsonlStateService;
+
 use Survos\JsonlBundle\Util\Jsonl;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\LockInterface;
@@ -35,7 +35,7 @@ final class JsonlWriter implements JsonlWriterInterface
     /** @var array<string,bool> */
     private array $index = [];
 
-    private readonly SidecarService $sidecar;
+    private readonly JsonlStateService $stateService;
 
     private ?LockInterface $lock = null;
 
@@ -57,7 +57,7 @@ final class JsonlWriter implements JsonlWriterInterface
         $this->filename  = $filename;
         $this->gzip      = Jsonl::isGzipPath($filename);
         $this->indexFile = $filename . '.idx.json';
-        $this->sidecar   = new SidecarService();
+        $this->stateService = new JsonlStateService();
     }
 
     /**
@@ -119,7 +119,7 @@ final class JsonlWriter implements JsonlWriterInterface
         }
 
         $writer->openHandle();
-        $writer->sidecar->touch($filename, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
+        $writer->stateService->touch($filename, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
 
         return $writer;
     }
@@ -153,12 +153,28 @@ final class JsonlWriter implements JsonlWriterInterface
         }
 
         // Update sidecar counters and capture deterministic file facts.
-        $this->sidecar->touch($this->filename, rowsDelta: 1, bytesDelta: (int) $bytes, captureFileFacts: true);
+        $this->stateService->touch($this->filename, rowsDelta: 1, bytesDelta: (int) $bytes, captureFileFacts: true);
+    }
+
+    public function state(): \Survos\JsonlBundle\Model\JsonlState
+    {
+        return $this->stateService->load($this->filename);
+    }
+
+    public function stateService(): JsonlStateService
+    {
+        return $this->stateService;
+    }
+
+    /**  array<string,mixed> $context */
+    public function putContext(array $context): void
+    {
+        $this->stateService->putContext($this->filename, $context);
     }
 
     public function markComplete(): void
     {
-        $this->sidecar->markComplete($this->filename, captureFileFacts: true);
+        $this->stateService->markComplete($this->filename, captureFileFacts: true);
     }
 
     public function finish(bool $markComplete = true): JsonlWriterResult
@@ -170,8 +186,7 @@ final class JsonlWriter implements JsonlWriterInterface
         $this->close();
 
         // Return an application-facing snapshot; no sidecar service exposure.
-        $repo  = new JsonlStateRepository($this->sidecar);
-        $state = $repo->load($this->filename);
+        $state = $this->stateService->load($this->filename);
 
         return new JsonlWriterResult($state);
     }

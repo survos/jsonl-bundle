@@ -144,8 +144,15 @@ final class JsonlProfiler implements JsonlProfilerInterface
                 $fieldStats['storageHint'] = $this->inferStorageHint($fieldStats);
             }
 
-            // cleanup heavy scratch data
-            unset($fieldStats['distinctValues'], $fieldStats['sampleStrings']);
+            // Retain distinct values for low-cardinality fields (under the cap) so term-set extraction
+            // reads them from the profile instead of re-scanning the JSONL. For scalars the distinct
+            // keys are the original values; capped (high-cardinality) fields keep only the count.
+            if ($fieldStats['distinctCapReached'] ?? false) {
+                unset($fieldStats['distinctValues']);
+            } else {
+                $fieldStats['distinctValues'] = array_keys($fieldStats['distinctValues']);
+            }
+            unset($fieldStats['sampleStrings']);
         }
         unset($fieldStats);
 

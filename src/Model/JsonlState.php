@@ -8,11 +8,15 @@ use Survos\JsonlBundle\Contract\JsonlStatsInterface;
 
 final readonly class JsonlState implements JsonlStateInterface
 {
+    /**
+     * @param array<string,mixed> $context
+     */
     public function __construct(
         private string $jsonlPath,
         private string $sidecarPath,
         private JsonlStatsInterface $stats,
         private bool $sidecarExists,
+        private array $context = [],
     ) {
     }
 
@@ -29,6 +33,17 @@ final readonly class JsonlState implements JsonlStateInterface
     public function getStats(): JsonlStatsInterface
     {
         return $this->stats;
+    }
+
+    /** @return array<string,mixed> */
+    public function getContext(): array
+    {
+        return $this->context;
+    }
+
+    public function context(string $key, mixed $default = null): mixed
+    {
+        return $this->context[$key] ?? $default;
     }
 
     public function exists(): bool
@@ -52,7 +67,6 @@ final readonly class JsonlState implements JsonlStateInterface
         $sMtime = $this->stats->getJsonlMtime();
         $sSize  = $this->stats->getJsonlSize();
 
-        // If the sidecar hasn't captured file facts yet, it's not fresh.
         if ($sMtime === null || $sSize === null) {
             return false;
         }

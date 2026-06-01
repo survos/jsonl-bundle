@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
 
-use Survos\JsonlBundle\Service\JsonlCountService;
+use Survos\JsonlBundle\Service\JsonlStateService;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -18,7 +18,7 @@ use Symfony\Component\Finder\Finder;
 final class JsonlCountCommand
 {
     public function __construct(
-        private readonly JsonlCountService $counter,
+        private readonly JsonlStateService $stateService,
     ) {}
 
     public function __invoke(
@@ -34,7 +34,7 @@ final class JsonlCountCommand
         $total = 0;
 
         if (is_file($path)) {
-            $count = $this->counter->rows($path);
+            $count = $this->stateService->rows($path);
             $rows[] = [(string) $count, $path];
 
             $io->table(['Rows', 'File'], $rows);
@@ -58,7 +58,7 @@ final class JsonlCountCommand
 
         foreach ($finder as $file) {
             $filePath = $file->getPathname();
-            $count = $this->counter->rows($filePath);
+            $count = $this->stateService->rows($filePath);
 
             $rows[] = [(string) $count, $filePath];
             $total += $count;

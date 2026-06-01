@@ -3,8 +3,7 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
 
-use Survos\JsonlBundle\Service\JsonlCountService;
-use Survos\JsonlBundle\Service\SidecarService;
+use Survos\JsonlBundle\Service\JsonlStateService;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -19,8 +18,7 @@ use Symfony\Component\Finder\Finder;
 final class JsonlInfoCommand
 {
     public function __construct(
-        private readonly SidecarService $sidecars,
-        private readonly JsonlCountService $counter,
+        private readonly JsonlStateService $stateService,
     ) {}
 
     public function __invoke(
@@ -55,10 +53,10 @@ final class JsonlInfoCommand
         foreach ($finder as $file) {
             $filePath = $file->getPathname();
 
-            $scExists = $this->sidecars->exists($filePath);
-            $sc = $scExists ? $this->sidecars->load($filePath) : null;
+            $scExists = $this->stateService->exists($filePath);
+            $sc = $scExists ? $this->stateService->loadSidecar($filePath) : null;
 
-            $count = $this->counter->rows($filePath);
+            $count = $this->stateService->rows($filePath);
             $completed = $scExists ? ($sc->completed ? 'yes' : 'no') : '(no sidecar)';
             $updatedAt = $scExists ? ($sc->updatedAt ?? '') : '';
             $startedAt = $scExists ? ($sc->startedAt ?? '') : '';
@@ -96,16 +94,16 @@ final class JsonlInfoCommand
             return Command::INVALID;
         }
 
-        $rows = $this->counter->rows($filePath);
+        $rows = $this->stateService->rows($filePath);
 
-        $scExists = $this->sidecars->exists($filePath);
-        $sc = $scExists ? $this->sidecars->load($filePath) : null;
+        $scExists = $this->stateService->exists($filePath);
+        $sc = $scExists ? $this->stateService->loadSidecar($filePath) : null;
 
         $io->title('JSONL info');
         $io->definitionList(
             ['File' => $filePath],
             ['Rows' => (string) $rows],
-            ['Sidecar' => $this->sidecars->sidecarPath($filePath)],
+            ['Sidecar' => $this->stateService->sidecarPath($filePath)],
             ['Sidecar exists' => $scExists ? 'yes' : 'no'],
             ['Completed' => $scExists ? ($sc->completed ? 'yes' : 'no') : '(no sidecar)'],
             ['Started' => $scExists ? ($sc->startedAt ?? '') : ''],

@@ -19,5 +19,9 @@ interface JsonlStateInterface
      * - jsonl exists
      * - sidecar jsonl_mtime/jsonl_size match filesystem
      */
+    public function getContext(): array;
+
+    public function context(string $key, mixed $default = null): mixed;
+
     public function isFresh(): bool;
 }
