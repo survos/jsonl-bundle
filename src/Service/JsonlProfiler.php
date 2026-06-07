@@ -18,6 +18,10 @@ namespace Survos\JsonlBundle\Service;
  * Notes:
  *  - The profiler is intentionally conservative: it emits hints/suggestions; you choose whether to apply transforms.
  *  - Distinct tracking is capped; we also keep a small sample of distinct strings for heuristics (stopwords, boolean-like, etc).
+ *
+ * @deprecated since survos/jsonl-bundle 2.8, use {@see \Survos\JsonlBundle\Sqlite\SqlProfiler}
+ *     (SQL/json_tree, bounded — no in-PHP accumulation, no OOM). This in-PHP accumulator
+ *     is retained only for legacy iterable-based consumers; see JsonlProfilerInterface.
  */
 final class JsonlProfiler implements JsonlProfilerInterface
 {
@@ -56,7 +60,11 @@ final class JsonlProfiler implements JsonlProfilerInterface
      *   ]
      */
     public function __construct(
-        private readonly int $distinctCap = 100000, // hack, we need to assume if it reaches this all unique then it is unique.
+        // High cap so high-cardinality SCALAR fields still report an exact distinct count for
+        // analysis; if it's reached we assume the field is effectively unique. This is safe for
+        // memory because only scalars are tracked here — array/object blobs are never distinct-tracked
+        // (see profile()), which is what previously exhausted memory.
+        private readonly int $distinctCap = 100000,
         private readonly int $sampleCap = 256,
         private readonly array $hints = [],
     ) {
@@ -64,6 +72,15 @@ final class JsonlProfiler implements JsonlProfilerInterface
 
     public function profile(iterable $rows): array
     {
+        trigger_deprecation(
+            'survos/jsonl-bundle',
+            '2.8',
+            'The in-PHP %s is deprecated; profile files with %s (SQL, bounded) and read %s instead.',
+            self::class,
+            \Survos\JsonlBundle\Sqlite\SqlProfiler::class,
+            \Survos\JsonlBundle\Sqlite\SidecarDb::class . '::loadFieldStats()',
+        );
+
         /** @var array<string, array<string, mixed>> $stats */
         $stats = [];
 
@@ -89,17 +106,21 @@ final class JsonlProfiler implements JsonlProfilerInterface
                     $fieldStats['types'][] = $type;
                 }
 
-                // Distinct values (non-null only), capped
-                if (\count($fieldStats['distinctValues']) < $this->distinctCap) {
-                    $dk = $this->normalizeDistinctKey($value);
-                    $fieldStats['distinctValues'][$dk] = true;
+                // Distinct values (non-null SCALARS only), capped.
+                // Arrays/objects are never facet/enum/term-set candidates, and json_encoding each
+                // one into a distinct key is what exhausted memory on payload-ish fields — so we
+                // simply don't distinct-track them. Their presence is still recorded via 'types'.
+                if (\is_scalar($value)) {
+                    if (\count($fieldStats['distinctValues']) < $this->distinctCap) {
+                        $fieldStats['distinctValues'][(string) $value] = true;
 
-                    // Keep a small sample of distinct strings for heuristics (boolean/stopwords/etc.)
-                    if (\is_string($value) && \count($fieldStats['sampleStrings']) < $this->sampleCap) {
-                        $fieldStats['sampleStrings'][] = $value;
+                        // Keep a small sample of distinct strings for heuristics (boolean/stopwords/etc.)
+                        if (\is_string($value) && \count($fieldStats['sampleStrings']) < $this->sampleCap) {
+                            $fieldStats['sampleStrings'][] = $value;
+                        }
+                    } else {
+                        $fieldStats['distinctCapReached'] = true;
                     }
-                } else {
-                    $fieldStats['distinctCapReached'] = true;
                 }
 
                 // String length stats + string-like hints
@@ -226,15 +247,6 @@ final class JsonlProfiler implements JsonlProfilerInterface
             \is_array($value)  => 'array',
             default            => 'other',
         };
-    }
-
-    private function normalizeDistinctKey(mixed $value): string
-    {
-        if (\is_scalar($value) || $value === null) {
-            return (string) $value;
-        }
-
-        return \json_encode($value, \JSON_THROW_ON_ERROR);
     }
 
     private function accumulateStringStats(array &$fieldStats, string $value): void

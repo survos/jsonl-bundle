@@ -3,9 +3,15 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle;
 
+use Survos\JsonlBundle\Command\JsonlCleanCommand;
 use Survos\JsonlBundle\Command\JsonlCountCommand;
+use Survos\JsonlBundle\Command\JsonlIndexCommand;
 use Survos\JsonlBundle\Command\JsonlInfoCommand;
+use Survos\JsonlBundle\Command\JsonlProfileCommand;
 use Survos\JsonlBundle\Command\JsonlStateCommand;
+use Survos\JsonlBundle\Command\JsonlVacuumCommand;
+use Survos\JsonlBundle\Sqlite\JsonlIndexer;
+use Survos\JsonlBundle\Sqlite\SqlProfiler;
 use Survos\JsonlBundle\Service\JsonlStateService;
 use Survos\JsonlBundle\Service\JsonlCountService;
 use Survos\JsonlBundle\Service\JsonlProfiler;
@@ -51,6 +57,16 @@ final class SurvosJsonlBundle extends AbstractBundle
             ->autowire()
             ->autoconfigure();
 
+        $services
+            ->set(JsonlIndexer::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(SqlProfiler::class)
+            ->autowire()
+            ->autoconfigure();
+
         // Console commands
         $services
             ->set(JsonlCountCommand::class)
@@ -64,6 +80,26 @@ final class SurvosJsonlBundle extends AbstractBundle
 
         $services
             ->set(JsonlInfoCommand::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlIndexCommand::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlProfileCommand::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlVacuumCommand::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlCleanCommand::class)
             ->autowire()
             ->autoconfigure();
 

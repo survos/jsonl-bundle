@@ -12,6 +12,7 @@
         "psr/log": "^3.0",
         "ext-zlib": "*",
       "ext-zip": "*",
+        "ext-pdo_sqlite": "*",
         "symfony/lock": "^8.0"
     },
     "require-dev": {

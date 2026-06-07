@@ -7,6 +7,17 @@
 
 namespace Survos\JsonlBundle\Model;
 
+/**
+ * Single field's profiling data — the legacy consumer-side model.
+ *
+ * @deprecated since survos/jsonl-bundle 2.8. The canonical per-field stats now live
+ *     in the sidecar `field_stats` table, produced by
+ *     {@see \Survos\JsonlBundle\Sqlite\SqlProfiler} and read via
+ *     {@see \Survos\JsonlBundle\Sqlite\SidecarDb::loadFieldStats()}. This class is the
+ *     second of the "two parallel profilers" (doc/profiler.md): its push()/distinct
+ *     accumulator duplicates the profiler and is deprecated. fromArray()/getters remain
+ *     for legacy readers until consumers migrate to the field_stats shape (Phase 6).
+ */
 final class FieldStats
 {
     public const DISTINCT_CAP = 500;
@@ -47,9 +58,21 @@ final class FieldStats
 
     /**
      * Push one observed value into this field's stats.
+     *
+     * @deprecated since survos/jsonl-bundle 2.8 — the in-PHP accumulator path. Use
+     *     {@see \Survos\JsonlBundle\Sqlite\SqlProfiler} (SQL) instead. fromArray()
+     *     (the read path) is unaffected.
      */
     public function push(mixed $value): void
     {
+        trigger_deprecation(
+            'survos/jsonl-bundle',
+            '2.8',
+            '%s::push() (in-PHP accumulator) is deprecated; profile with %s instead.',
+            self::class,
+            \Survos\JsonlBundle\Sqlite\SqlProfiler::class,
+        );
+
         if ($value === null || $value === '') {
             $this->nulls++;
             return;

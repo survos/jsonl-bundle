@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Survos\JsonlBundle\Command;
 
 use Survos\JsonlBundle\Service\JsonlStateService;
+use Survos\JsonlBundle\Sqlite\SidecarDb;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -99,6 +100,9 @@ final class JsonlInfoCommand
         $scExists = $this->stateService->exists($filePath);
         $sc = $scExists ? $this->stateService->loadSidecar($filePath) : null;
 
+        $db = new SidecarDb($filePath . '.db');
+        $hasIdx = $db->hasIdx();
+
         $io->title('JSONL info');
         $io->definitionList(
             ['File' => $filePath],
@@ -109,6 +113,10 @@ final class JsonlInfoCommand
             ['Started' => $scExists ? ($sc->startedAt ?? '') : ''],
             ['Updated' => $scExists ? ($sc->updatedAt ?? '') : ''],
             ['Bytes (sidecar)' => $scExists ? (string) $sc->bytes : ''],
+            ['Indexed keys' => $hasIdx ? (string) $db->keyCount() : '(run jsonl:index)'],
+            ['Facet fields' => $hasIdx ? (implode(', ', $db->facetFields()) ?: '(none)') : ''],
+            ['Profiled fields' => (string) count($db->loadFieldStats()) ?: '0'],
+            ['Data cache' => $db->hasCache() ? 'present (browseable)' : 'none (vacuumed)'],
         );
 
         return Command::SUCCESS;

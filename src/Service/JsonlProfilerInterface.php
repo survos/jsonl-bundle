@@ -10,6 +10,14 @@ namespace Survos\JsonlBundle\Service;
  * - It returns a normalized stats array keyed by field name.
  * - Higher-level bundles (Import/Meili/Code) can wrap this into
  *   JsonlProfile / FieldStats models or other domain objects.
+ *
+ * @deprecated since survos/jsonl-bundle 2.8. The canonical profiler is now
+ *     {@see \Survos\JsonlBundle\Sqlite\SqlProfiler} (SQL / json_tree, bounded by
+ *     construction) which writes the sidecar `field_stats` table; read it back via
+ *     {@see \Survos\JsonlBundle\Sqlite\SidecarDb::loadFieldStats()}. This in-PHP,
+ *     iterable-based interface is retained only for legacy consumers (md & meili
+ *     apps, folio FolioSchemaSnapshotter, code-bundle, import-bundle, past-perfect)
+ *     and will be removed once they migrate to the file/SQL profiler.
  */
 interface JsonlProfilerInterface
 {

@@ -24,7 +24,7 @@ final class JsonlStateCommand
         #[Argument('Path to a .jsonl (or .jsonl.gz) file.')]
         string $path,
 
-        #[Option('Ensure a sidecar exists and captures current file facts.', shortcut: 'e')]
+        #[Option('Ensure a sidecar exists and captures current file facts.')]
         bool $ensure = false,
 
         #[Option('Emit machine-readable JSON.', shortcut: 'j')]

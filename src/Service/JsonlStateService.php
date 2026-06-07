@@ -6,49 +6,46 @@ namespace Survos\JsonlBundle\Service;
 use Survos\JsonlBundle\Model\JsonlSidecar;
 use Survos\JsonlBundle\Model\JsonlState;
 use Survos\JsonlBundle\Model\JsonlStats;
+use Survos\JsonlBundle\Sqlite\SidecarDb;
+use Survos\JsonlBundle\Sqlite\SidecarMeta;
 use Survos\JsonlBundle\Util\Jsonl;
 
 /**
  * Public state API for JSONL artifacts.
  *
- * The default storage is a sidecar JSON file next to the artifact, but callers
- * should treat that as an implementation detail. Future stores can persist the
- * same state in dataset-bundle, Redis, or elsewhere.
+ * State is persisted in a per-file SQLite sidecar (`<file>.db`, a `meta`
+ * key/value table) — see doc/adr-0001-sqlite-sidecar.md. Callers should treat
+ * the storage as an implementation detail; the public surface and the
+ * JsonlSidecar DTO are unchanged. A pre-existing `<file>.sidecar.json` is read
+ * once as a fallback and folded into the DB on the next save.
  */
 class JsonlStateService
 {
+    /** @var array<string, SidecarDb> */
+    private array $dbs = [];
+
     public function sidecarPath(string $jsonlPath): string
     {
-        return $jsonlPath . '.sidecar.json';
+        // Canonical state store is now the SQLite sidecar DB (ADR 0001).
+        return $jsonlPath . '.db';
     }
 
     public function exists(string $jsonlPath): bool
     {
-        return is_file($this->sidecarPath($jsonlPath));
+        return $this->sidecarDb($jsonlPath)->hasState();
     }
 
     public function loadSidecar(string $jsonlPath): JsonlSidecar
     {
-        $path = $this->sidecarPath($jsonlPath);
-
-        if (!is_file($path)) {
-            $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-            return new JsonlSidecar(startedAt: $now, updatedAt: $now);
+        $meta = $this->sidecarDb($jsonlPath)->loadMeta();
+        if ($meta !== null) {
+            return $this->metaToSidecar($meta);
         }
 
-        $raw = @file_get_contents($path);
-        if ($raw === false || trim($raw) === '') {
-            $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-            return new JsonlSidecar(startedAt: $now, updatedAt: $now);
-        }
-
-        $data = json_decode($raw, true);
-        if (!is_array($data)) {
-            $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-            return new JsonlSidecar(startedAt: $now, updatedAt: $now);
-        }
-
-        return JsonlSidecar::fromArray($data);
+        // State lives in the SQLite sidecar (<file>.db). Obsolete .sidecar.json files
+        // are no longer read — purge them with `jsonl:clean` (no migration).
+        $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+        return new JsonlSidecar(startedAt: $now, updatedAt: $now);
     }
 
     public function load(string $jsonlPath): JsonlState
@@ -181,25 +178,51 @@ class JsonlStateService
 
     public function saveSidecar(string $jsonlPath, JsonlSidecar $sidecar): void
     {
+        $this->sidecarDb($jsonlPath)->saveMeta($this->sidecarToMeta($sidecar));
+    }
+
+    private function sidecarDb(string $jsonlPath): SidecarDb
+    {
         $path = $this->sidecarPath($jsonlPath);
-        $json = json_encode($sidecar->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        if ($json === false) {
-            throw new \RuntimeException('Failed to encode sidecar JSON.');
-        }
 
-        $dir = dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o775, true);
-        }
+        return $this->dbs[$path] ??= new SidecarDb($path);
+    }
 
-        $tmp = $path . '.tmp';
-        if (@file_put_contents($tmp, $json) === false) {
-            throw new \RuntimeException(sprintf('Failed writing sidecar tmp file "%s".', $tmp));
-        }
-        if (!@rename($tmp, $path)) {
-            @unlink($tmp);
-            throw new \RuntimeException(sprintf('Failed atomically replacing sidecar file "%s".', $path));
-        }
+    /*
+     * The two mappings below are the public DTO <-> storage DTO seam. The only
+     * field differences are the names jsonl_mtime/jsonl_size (public, legacy
+     * snake_case) vs jsonlMtime/jsonlSize (storage). A Symfony ObjectMapper
+     * (#[Map]) could replace them — deferred until it is adopted bundle-wide
+     * (field-bundle ADR 0002), since here it would only cover this trivial copy
+     * and not the typed<->TEXT coercion, which lives in SidecarMeta.
+     */
+
+    private function metaToSidecar(SidecarMeta $m): JsonlSidecar
+    {
+        return new JsonlSidecar(
+            startedAt: $m->startedAt,
+            updatedAt: $m->updatedAt,
+            rows: $m->rows,
+            bytes: $m->bytes,
+            completed: $m->completed,
+            jsonl_mtime: $m->jsonlMtime,
+            jsonl_size: $m->jsonlSize,
+            context: $m->context,
+        );
+    }
+
+    private function sidecarToMeta(JsonlSidecar $sc): SidecarMeta
+    {
+        return new SidecarMeta(
+            startedAt: $sc->startedAt,
+            updatedAt: $sc->updatedAt,
+            rows: $sc->rows,
+            bytes: $sc->bytes,
+            completed: $sc->completed,
+            jsonlMtime: $sc->jsonl_mtime,
+            jsonlSize: $sc->jsonl_size,
+            context: $sc->context,
+        );
     }
 
     private function captureFileFacts(string $jsonlPath, JsonlSidecar $sc, bool $capture): void

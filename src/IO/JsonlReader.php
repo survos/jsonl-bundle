@@ -8,6 +8,7 @@ use Traversable;
 use Survos\JsonlBundle\Contract\JsonlReaderInterface as ContractJsonlReaderInterface;
 use Survos\JsonlBundle\Model\JsonlState;
 use Survos\JsonlBundle\Service\JsonlStateService;
+use Survos\JsonlBundle\Sqlite\SidecarDb;
 use Survos\JsonlBundle\Util\Jsonl;
 
 /**
@@ -102,6 +103,58 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
         }
 
         return isset($this->tokenIndex[$tokenCode]);
+    }
+
+    /**
+     * Random-access fetch of a single record by primary key, using the sidecar
+     * index (`<file>.db`, built by jsonl:index). Returns null when the pk is not
+     * indexed or the line cannot be read/decoded.
+     *
+     * Plain `.jsonl` seeks directly (O(1)); `.jsonl.gz` uses gzseek on the
+     * uncompressed offset (O(n)-ish — gzip is not randomly seekable; ADR §8).
+     *
+     * @return array<string,mixed>|null
+     */
+    public function get(string $pk): ?array
+    {
+        $offset = (new SidecarDb($this->path . '.db'))->lookupOffset($pk);
+        if ($offset === null) {
+            return null;
+        }
+
+        $gzip = Jsonl::isGzipPath($this->path);
+
+        if ($gzip) {
+            $handle = gzopen($this->path, 'rb');
+            if ($handle === false) {
+                return null;
+            }
+            try {
+                gzseek($handle, $offset);
+                $line = gzgets($handle);
+            } finally {
+                gzclose($handle);
+            }
+        } else {
+            $handle = fopen($this->path, 'rb');
+            if ($handle === false) {
+                return null;
+            }
+            try {
+                fseek($handle, $offset);
+                $line = fgets($handle);
+            } finally {
+                fclose($handle);
+            }
+        }
+
+        if ($line === false) {
+            return null;
+        }
+
+        $decoded = json_decode(trim($line), true);
+
+        return is_array($decoded) ? $decoded : null;
     }
 
     /**

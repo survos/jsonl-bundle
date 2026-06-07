@@ -24,11 +24,20 @@ If your code fights any of these principles, you are probably using the bundle i
 
 ## Sidecar Files (Progress Is Not Optional)
 
-Every JSONL file written by `JsonlWriter` maintains a **sidecar file**:
+> **As of v2.8 the sidecar is a per-file SQLite database `<file>.db`**, not a JSON
+> file. It holds state (`meta`), the `pk → offset` index + covering facets (`idx`),
+> per-field stats (`field_stats`), and an optional browseable `_rows` cache + `v_rows`
+> view. The public API (`JsonlStateService`, the `JsonlSidecar` DTO) is unchanged.
+> Obsolete `*.sidecar.json` files are no longer read — purge them with `jsonl:clean`.
+> See `doc/adr-0001-sqlite-sidecar.md`. Tooling: `jsonl:index`, `jsonl:profile`,
+> `jsonl:vacuum`, `jsonl:clean`. The rest of this section describes the *concepts*
+> (the storage medium changed, the semantics did not).
+
+Every JSONL file maintained by `JsonlWriter`/`jsonl:index` has a **sidecar**:
 
 ```
-<file>.jsonl.sidecar.json
-<file>.jsonl.gz.sidecar.json
+<file>.jsonl.db
+<file>.jsonl.gz.db
 ```
 
 The sidecar records:
