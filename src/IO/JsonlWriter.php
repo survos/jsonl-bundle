@@ -294,6 +294,10 @@ final class JsonlWriter implements JsonlWriterInterface
                 @\unlink($path);
             }
         }
+
+        // Clear the SQLite sidecar state too, so a fresh ('w') write does not inherit
+        // stale rows/bytes/completed/context from a previous run.
+        $this->stateService->reset($this->filename);
     }
 
     private function loadIndex(): void

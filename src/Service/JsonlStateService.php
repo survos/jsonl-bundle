@@ -122,6 +122,20 @@ class JsonlStateService
         return $sc;
     }
 
+    /**
+     * Reset persisted state to a fresh sidecar (rows/bytes 0, not completed, empty
+     * context). Used when a JSONL file is truncated/rewritten so stale `completed`
+     * or counters from a previous run do not leak into the new one.
+     */
+    public function reset(string $jsonlPath): JsonlSidecar
+    {
+        $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+        $sc = new JsonlSidecar(startedAt: $now, updatedAt: $now);
+        $this->saveSidecar($jsonlPath, $sc);
+
+        return $sc;
+    }
+
     public function rows(string $jsonlPath): int
     {
         if ($this->exists($jsonlPath)) {
