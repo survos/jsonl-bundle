@@ -6,7 +6,7 @@ namespace Survos\JsonlBundle\Tests\Service;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Survos\JsonlBundle\Service\JsonlStateRepository;
-use Survos\JsonlBundle\Service\SidecarService;
+use Survos\JsonlBundle\Service\JsonlStateService;
 
 final class JsonlStateRepositoryTest extends TestCase
 {
@@ -25,18 +25,18 @@ final class JsonlStateRepositoryTest extends TestCase
     #[Test]
     public function it_loads_state_from_sidecar_and_checks_freshness(): void
     {
-        $sidecar = new SidecarService();
-        $repo    = new JsonlStateRepository($sidecar);
+        $stateService = new JsonlStateService();
+        $repo = new JsonlStateRepository($stateService);
 
         $jsonl = $this->dir . '/data.jsonl';
         file_put_contents($jsonl, "{\"a\":1}\n", LOCK_EX);
 
-        $sidecar->touch($jsonl, rowsDelta: 1, bytesDelta: 7, captureFileFacts: true);
+        $stateService->touch($jsonl, rowsDelta: 1, bytesDelta: 7, captureFileFacts: true);
 
         $state = $repo->load($jsonl);
 
         self::assertSame($jsonl, $state->getJsonlPath());
-        self::assertSame($jsonl . '.sidecar.json', $state->getSidecarPath());
+        self::assertSame($jsonl . '.db', $state->getSidecarPath());
         self::assertTrue($state->exists());
 
         $stats = $state->getStats();
@@ -54,13 +54,13 @@ final class JsonlStateRepositoryTest extends TestCase
     #[Test]
     public function freshness_becomes_false_if_jsonl_is_modified_outside_writer(): void
     {
-        $sidecar = new SidecarService();
-        $repo    = new JsonlStateRepository($sidecar);
+        $stateService = new JsonlStateService();
+        $repo = new JsonlStateRepository($stateService);
 
         $jsonl = $this->dir . '/data.jsonl';
         file_put_contents($jsonl, "{\"a\":1}\n", LOCK_EX);
 
-        $sidecar->touch($jsonl, rowsDelta: 1, bytesDelta: 7, captureFileFacts: true);
+        $stateService->touch($jsonl, rowsDelta: 1, bytesDelta: 7, captureFileFacts: true);
 
         self::assertTrue($repo->load($jsonl)->isFresh());
 

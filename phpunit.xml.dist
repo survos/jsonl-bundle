@@ -9,7 +9,7 @@
 >
     <testsuites>
         <testsuite name="jsonl-bundle">
-            <directory>tests</directory>
+            <directory suffix="Test.php">tests</directory>
         </testsuite>
     </testsuites>
 

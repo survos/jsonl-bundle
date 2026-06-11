@@ -11,12 +11,11 @@
         "symfony/console": "^8.1",
         "psr/log": "^3.0",
         "ext-zlib": "*",
-      "ext-zip": "*",
+        "ext-zip": "*",
         "ext-pdo_sqlite": "*",
         "symfony/lock": "^8.1"
     },
     "require-dev": {
-        "roave/security-advisories": "dev-latest",
         "phpunit/phpunit": "^13.0",
         "symfony/messenger": "^8.1",
         "league/csv": "^9.27",
@@ -36,8 +35,13 @@
         }
     },
     "scripts": {
-        "test": "phpunit -c phpunit.xml.dist"
+        "test": "phpunit -c phpunit.xml.dist --no-coverage"
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "autoload-dev": {
+        "psr-4": {
+            "Survos\\JsonlBundle\\Tests\\": "tests/"
+        }
+    }
 }

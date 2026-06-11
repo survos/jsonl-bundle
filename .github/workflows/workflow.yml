@@ -1,9 +1,37 @@
 name: CI
-on:
-  workflow_dispatch:
-jobs:
-  noop:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Run CI from mono repo"
 
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: zip, pdo_sqlite
+          coverage: none
+          tools: phpstan
+
+      - name: Validate Composer metadata
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Lint PHP files
+        run: find src tests -name '*.php' -print0 | xargs -0 -n 1 php -l
+
+      - name: Run tests
+        run: composer test
+
+      - name: Run PHPStan
+        run: phpstan analyse --no-progress
+        continue-on-error: true
