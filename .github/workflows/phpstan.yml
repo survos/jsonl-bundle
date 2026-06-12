@@ -10,6 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install runner packages
+        run: sudo apt-get update && sudo apt-get install -y libsodium23
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'

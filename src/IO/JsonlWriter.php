@@ -44,15 +44,7 @@ final class JsonlWriter implements JsonlWriterInterface
     /** @var 'a'|'w' */
     private string $mode = 'w';
 
-    /**
-     * @param array{
-     *   ensure_dir?: bool,
-     *   dir_perms?: int,
-     *   reset_sidecars?: bool,
-     *   lock?: bool
-     * } $options
-     */
-    public function __construct(string $filename, array $options = [])
+    public function __construct(string $filename)
     {
         $this->filename  = $filename;
         $this->gzip      = Jsonl::isGzipPath($filename);
@@ -73,12 +65,6 @@ final class JsonlWriter implements JsonlWriterInterface
      *  - reset_sidecars (bool) default true (only relevant for mode 'w')
      *  - lock (bool) default true
      *
-     * @param array{
-     *   ensure_dir?: bool,
-     *   dir_perms?: int,
-     *   reset_sidecars?: bool,
-     *   lock?: bool
-     * }|null $options
      */
     public static function open(
         string $filename,

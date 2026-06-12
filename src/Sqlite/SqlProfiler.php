@@ -73,15 +73,17 @@ final class SqlProfiler
         // everything except object containers and array interiors (for the type histogram)
         $nodeWhere = "fullkey <> '$' AND type <> 'object' AND fullkey NOT LIKE '%[%' AND $depth <= $maxDepth";
 
+        /** @var array<string, array<string, mixed>> $fields */
         $fields = [];
-
         // A) per-(path,type) counts -> histogram, present, non_null, is_array
         $sql = "SELECT fullkey, type, COUNT(*) c FROM _rows, json_tree(_rows.body)
                 WHERE $nodeWhere GROUP BY fullkey, type";
         foreach ($pdo->query($sql) as $r) {
             $path = $this->normalize((string) $r['fullkey']);
+            if (!isset($fields[$path])) {
+                $fields[$path] = $this->emptyStat($path);
+            }
             $f = &$fields[$path];
-            $f ??= $this->emptyStat($path);
             $c = (int) $r['c'];
             $type = (string) $r['type'];
             $f['json_types'][$type] = $c;

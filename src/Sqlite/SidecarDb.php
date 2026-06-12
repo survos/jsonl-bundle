@@ -172,14 +172,15 @@ final class SidecarDb
                     len_avg     REAL,
                     top_values  TEXT,
                     is_array    INTEGER DEFAULT 0,
-                    heuristics  TEXT
+                    heuristics  TEXT,
+                    elements    TEXT
                 )'
             );
         }
 
-        if ($version < 4) {
+        if ($version === 3) {
             // array-element stats (count, distinct, avgPerRow, top-N) for is_array
-            // fields — folded into the parent field row (ADR 0001 §4).
+            // fields - folded into the parent field row (ADR 0001 §4).
             $pdo->exec('ALTER TABLE field_stats ADD COLUMN elements TEXT');
         }
 
@@ -318,7 +319,7 @@ final class SidecarDb
             $row['json_types'] = json_decode((string) ($row['json_types'] ?? '{}'), true) ?: [];
             $row['top_values'] = json_decode((string) ($row['top_values'] ?? '[]'), true) ?: [];
             $row['heuristics'] = json_decode((string) ($row['heuristics'] ?? '{}'), true) ?: [];
-            $row['elements'] = isset($row['elements']) && $row['elements'] !== null
+            $row['elements'] = array_key_exists('elements', $row) && $row['elements'] !== null
                 ? json_decode((string) $row['elements'], true)
                 : null;
             $rows[] = $row;

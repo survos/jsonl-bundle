@@ -85,7 +85,7 @@ final class LegacyProfile
         $distinct = (int) ($r['distinct_n'] ?? 0);
         $lenMin = isset($r['len_min']) ? (int) $r['len_min'] : null;
         $lenMax = isset($r['len_max']) ? (int) $r['len_max'] : null;
-        $lenAvg = isset($r['len_avg']) && $r['len_avg'] !== null ? (float) $r['len_avg'] : null;
+        $lenAvg = array_key_exists('len_avg', $r) && $r['len_avg'] !== null ? (float) $r['len_avg'] : null;
         $heuristics = \is_array($r['heuristics'] ?? null) ? $r['heuristics'] : [];
         $topValues = \is_array($r['top_values'] ?? null) ? $r['top_values'] : [];
         $isComposite = \in_array('array', $types, true) || \in_array('object', $types, true);
