@@ -112,10 +112,20 @@ final class JsonlWriter implements JsonlWriterInterface
 
 
     /**
-     * Write a row. If $tokenCode is provided and already present in the index, the row is skipped.
+     * Write a row. Accepts an array or a serializable DTO — pass a value object straight in and
+     * the writer serialises it (JsonSerializable::jsonSerialize(), else public props with null
+     * fields dropped for a sparse stream). This kills the normalize-to-array boilerplate that
+     * every producer was repeating. If $tokenCode is provided and already present in the index,
+     * the row is skipped.
      */
-    public function write(array $row, ?string $tokenCode = null): void
+    public function write(array|object $row, ?string $tokenCode = null): void
     {
+        if (\is_object($row)) {
+            $row = $row instanceof \JsonSerializable
+                ? (array) $row->jsonSerialize()
+                : \array_filter(\get_object_vars($row), static fn (mixed $v): bool => $v !== null);
+        }
+
         if ($tokenCode !== null) {
             if (isset($this->index[$tokenCode])) {
                 return;
