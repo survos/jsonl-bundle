@@ -204,6 +204,20 @@ class JsonlStateService
         $this->sidecarDb($jsonlPath)->saveMeta($this->sidecarToMeta($sidecar));
     }
 
+    /**
+     * Close every cached sidecar handle and clear the cache, releasing their SQLite file
+     * descriptors. Long batch jobs (e.g. folio:build --all over hundreds of datasets) call this
+     * between datasets so handles don't accumulate up to the OS open-file limit ("Too many open
+     * files"). Cheap and safe to call repeatedly — the next access reopens on demand.
+     */
+    public function closeAll(): void
+    {
+        foreach ($this->dbs as $db) {
+            $db->close();
+        }
+        $this->dbs = [];
+    }
+
     private function sidecarDb(string $jsonlPath): SidecarDb
     {
         $path = $this->sidecarPath($jsonlPath);
