@@ -21,7 +21,16 @@ use Survos\JsonlBundle\Util\Jsonl;
  */
 class JsonlStateService
 {
-    /** @var array<string, SidecarDb> */
+    /**
+     * Cap on concurrently-open sidecar handles. Each open SidecarDb holds a WAL SQLite
+     * connection (.db + -wal + -shm ≈ 3 fds), so an unbounded cache exhausts file
+     * descriptors on a large build (folio:build --all over thousands of datasets) and
+     * fails with SQLite error 14. The cache is an LRU: past this many, the least-recently
+     * used handle is closed.
+     */
+    private const int MAX_OPEN_DBS = 256;
+
+    /** @var array<string, SidecarDb> path => db, ordered least- to most-recently-used. */
     private array $dbs = [];
 
     public function sidecarPath(string $jsonlPath): string
@@ -199,7 +208,25 @@ class JsonlStateService
     {
         $path = $this->sidecarPath($jsonlPath);
 
-        return $this->dbs[$path] ??= new SidecarDb($path);
+        // LRU: re-seat an existing handle as most-recently-used (move to the array tail).
+        if (isset($this->dbs[$path])) {
+            $db = $this->dbs[$path];
+            unset($this->dbs[$path]);
+            $this->dbs[$path] = $db;
+
+            return $db;
+        }
+
+        $db = $this->dbs[$path] = new SidecarDb($path);
+
+        // Evict least-recently-used handles (array head) past the cap, closing each so its
+        // file descriptors are released — keeps a huge build from running out of fds.
+        while (count($this->dbs) > self::MAX_OPEN_DBS) {
+            $evicted = array_shift($this->dbs);
+            $evicted->close();
+        }
+
+        return $db;
     }
 
     /*

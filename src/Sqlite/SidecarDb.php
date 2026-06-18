@@ -35,6 +35,17 @@ final class SidecarDb
     }
 
     /**
+     * Release the underlying SQLite handle and its WAL/SHM file descriptors. Safe to call
+     * repeatedly; the next read/write lazily reopens. Lets a caller bound the number of
+     * concurrently-open sidecars (see JsonlStateService's LRU) so a huge build doesn't
+     * exhaust file descriptors.
+     */
+    public function close(): void
+    {
+        $this->pdo = null;
+    }
+
+    /**
      * Load the persisted meta, or null if no sidecar DB / no state exists yet.
      */
     public function loadMeta(): ?SidecarMeta
@@ -112,10 +123,22 @@ final class SidecarDb
             throw new RuntimeException(sprintf('Unable to create directory: %s', $dir));
         }
 
-        $pdo = new PDO('sqlite:' . $this->dbPath);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $pdo->exec('PRAGMA journal_mode = WAL');
-        $pdo->exec('PRAGMA busy_timeout = 5000');
+        try {
+            $pdo = new PDO('sqlite:' . $this->dbPath);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $pdo->exec('PRAGMA journal_mode = WAL');
+            $pdo->exec('PRAGMA busy_timeout = 5000');
+        } catch (Throwable $e) {
+            // SQLite "unable to open database file" (error 14) is opaque — surface the
+            // path and the usual culprits instead of a bare PDOException stack trace.
+            throw new RuntimeException(sprintf(
+                'Unable to open sidecar DB %s: %s. Likely causes: too many open files '
+                . '(check `ulimit -n` and for a leaked/competing process), or an '
+                . 'unavailable / read-only directory.',
+                $this->dbPath,
+                $e->getMessage(),
+            ), 0, $e);
+        }
 
         $this->migrate($pdo);
 
