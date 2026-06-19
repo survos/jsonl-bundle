@@ -44,6 +44,20 @@ final class JsonlWriter implements JsonlWriterInterface
     /** @var 'a'|'w' */
     private string $mode = 'w';
 
+    /**
+     * Persist the SQLite sidecar state every N rows instead of once per row. Per-row persistence
+     * (a `saveMeta()` write transaction + two stat() syscalls in {@see JsonlStateService::touch()})
+     * was the dominant cost of bulk writes — it capped large ingests/extracts at ~10 rows/sec
+     * regardless of payload. Batching cuts that by ~1000×; the persisted sidecar still ends exact
+     * because {@see finish()}/{@see markComplete()} flush the remainder. An interrupted run is
+     * `completed=false` and re-run anyway, so an interim undercount between flushes never matters.
+     */
+    private const int STATE_FLUSH_ROWS = 1000;
+
+    /** Row/byte deltas written since the last sidecar persist; flushed in batches, see above. */
+    private int $unsyncedRows = 0;
+    private int $unsyncedBytes = 0;
+
     public function __construct(string $filename)
     {
         $this->filename  = $filename;
@@ -148,12 +162,36 @@ final class JsonlWriter implements JsonlWriterInterface
             throw new \RuntimeException(sprintf('Failed writing to "%s".', $this->filename));
         }
 
-        // Update sidecar counters and capture deterministic file facts.
-        $this->stateService->touch($this->filename, rowsDelta: 1, bytesDelta: (int) $bytes, captureFileFacts: true);
+        // Accumulate sidecar counters in memory; persist in batches (see self::STATE_FLUSH_ROWS).
+        $this->unsyncedRows++;
+        $this->unsyncedBytes += (int) $bytes;
+        if ($this->unsyncedRows >= self::STATE_FLUSH_ROWS) {
+            $this->flushState();
+        }
+    }
+
+    /** Persist accumulated row/byte deltas to the sidecar in one write; no-op when nothing is pending. */
+    private function flushState(): void
+    {
+        if ($this->unsyncedRows === 0 && $this->unsyncedBytes === 0) {
+            return;
+        }
+
+        // captureFileFacts:false here — the mtime/size snapshot only needs to be exact at
+        // markComplete() (which captures it); skipping the stat() keeps batch flushes cheap.
+        $this->stateService->touch(
+            $this->filename,
+            rowsDelta: $this->unsyncedRows,
+            bytesDelta: $this->unsyncedBytes,
+            captureFileFacts: false,
+        );
+        $this->unsyncedRows = 0;
+        $this->unsyncedBytes = 0;
     }
 
     public function state(): \Survos\JsonlBundle\Model\JsonlState
     {
+        $this->flushState(); // ensure a deliberate read reflects every row written so far
         return $this->stateService->load($this->filename);
     }
 
@@ -170,6 +208,7 @@ final class JsonlWriter implements JsonlWriterInterface
 
     public function markComplete(): void
     {
+        $this->flushState(); // land the tail of un-persisted rows before the completed snapshot
         $this->stateService->markComplete($this->filename, captureFileFacts: true);
     }
 
@@ -177,6 +216,8 @@ final class JsonlWriter implements JsonlWriterInterface
     {
         if ($markComplete) {
             $this->markComplete();
+        } else {
+            $this->flushState(); // no completed snapshot, but still persist the final row/byte counts
         }
 
         $this->close();
@@ -189,6 +230,8 @@ final class JsonlWriter implements JsonlWriterInterface
 
     public function close(): void
     {
+        $this->flushState(); // persist any tail deltas for callers that close() without finish()
+
         // Persist token index only if it was used.
         $this->saveIndex();
 
