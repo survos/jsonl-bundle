@@ -28,6 +28,28 @@ final class Jsonl
         return array_values(array_unique($paths));
     }
 
+    /**
+     * Read a compression setting as config and env vars deliver it: false/"false"/"off"/"" (or
+     * null) mean plain JSONL, an integer or numeric string 0-9 is a gzip level. Use a plain
+     * %env(NAME)%: the json: processor only accepts arrays, so it rejects "1" and "false".
+     */
+    public static function compression(int|string|bool|null $setting): int|false
+    {
+        if ($setting === null || $setting === false || \in_array(\strtolower(\trim((string) $setting)), ['', 'false', 'off', 'no', 'none'], true)) {
+            return false;
+        }
+        if ($setting === true) {
+            return 1;
+        }
+        if (\is_int($setting) || \ctype_digit(\trim((string) $setting))) {
+            $level = (int) $setting;
+            if ($level >= 0 && $level <= 9) {
+                return $level;
+            }
+        }
+        throw new \InvalidArgumentException(\sprintf('Compression must be false or a level 0-9, got "%s".', (string) $setting));
+    }
+
     /** Compression policy chooses the suffix; level zero still means gzip. */
     public static function outputPath(string $path, int|false $compression = 1): string
     {
