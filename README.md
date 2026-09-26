@@ -684,3 +684,33 @@ For production patterns—including **resume semantics**, **sidecar files**, **r
 
 That document is where long-running jobs, API dumps, and restartable ingestion pipelines are covered in detail.
 
+
+
+### Gzip compression
+
+The filename chooses the format: `.jsonl` is plain text; `.jsonl.gz` is gzip.
+Gzip defaults to level **1** (fast), including outside Symfony. Level **0** still
+writes a gzip stream; it does not mean a plain file.
+
+```yaml
+# config/packages/survos_jsonl.yaml
+parameters:
+    env(JSONL_COMPRESSION_LEVEL): '1'
+survos_jsonl:
+    compression_level: '%env(int:JSONL_COMPRESSION_LEVEL)%'
+
+when@dev:
+    survos_jsonl:
+        compression_level: 0
+```
+
+`JsonlWriter::open($path, compressionLevel: 6)` overrides the configured default
+for that writer. Existing open writers keep their original level.
+
+For applications with an optional-compression policy, use
+`Jsonl::outputPath($path, compression: false)` for plain JSONL, or pass an integer
+0–9 for a `.gz` suffix and the same integer to `open(compressionLevel: ...)`.
+`Jsonl::resolvePath()` and `JsonlReader::open()` find a gzip sibling when the plain
+path is absent; `Jsonl::files()` discovers both formats without duplicate cores.
+When both exist, the plain file wins so a new normalization cannot reuse an older
+compressed copy.

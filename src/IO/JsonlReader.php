@@ -47,7 +47,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
 
     public static function open(string $filename): self
     {
-        return new self($filename);
+        return new self(Jsonl::resolvePath($filename));
     }
 
     public function path(): string

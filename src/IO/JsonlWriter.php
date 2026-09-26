@@ -25,6 +25,27 @@ use Symfony\Component\Lock\Store\FlockStore;
  */
 final class JsonlWriter implements JsonlWriterInterface
 {
+    private static int $defaultCompressionLevel = 1;
+    private int $compressionLevel = 1;
+
+    public static function getDefaultCompressionLevel(): int
+    {
+        return self::$defaultCompressionLevel;
+    }
+
+    public static function setDefaultCompressionLevel(int $level): void
+    {
+        self::validateCompressionLevel($level);
+        self::$defaultCompressionLevel = $level;
+    }
+
+    private static function validateCompressionLevel(int $level): void
+    {
+        if ($level < 0 || $level > 9) {
+            throw new \InvalidArgumentException('Compression level must be between 0 and 9.');
+        }
+    }
+
     /** @var resource|null */
     private $fh = null;
 
@@ -84,8 +105,11 @@ final class JsonlWriter implements JsonlWriterInterface
         string $filename,
         string $mode = 'w',
         ?JsonlWriterOptions $options = null,
+        ?int $compressionLevel = null,
     ): self
     {
+        $compressionLevel ??= self::$defaultCompressionLevel;
+        self::validateCompressionLevel($compressionLevel);
         $options ??= JsonlWriterOptions::defaults();
 
         $mode = \strtolower($mode);
@@ -104,6 +128,7 @@ final class JsonlWriter implements JsonlWriterInterface
 
         $writer = new self($filename);
         $writer->mode = $mode;
+        $writer->compressionLevel = $compressionLevel;
 
         if ($options->useLock) {
             $writer->acquireLock();
@@ -264,7 +289,7 @@ final class JsonlWriter implements JsonlWriterInterface
         // fopen/gzopen modes:
         //  - 'a' (append) or 'w' (truncate)
         $plainMode = ($this->mode === 'a') ? 'ab' : 'wb';
-        $gzipMode  = ($this->mode === 'a') ? 'ab9' : 'wb9';
+        $gzipMode  = $plainMode . $this->compressionLevel;
 
         $this->fh = $this->gzip
             ? @\gzopen($this->filename, $gzipMode)

@@ -3,13 +3,6 @@ declare(strict_types=1);
 
 namespace Survos\JsonlBundle;
 
-use Survos\JsonlBundle\Command\JsonlCleanCommand;
-use Survos\JsonlBundle\Command\JsonlCountCommand;
-use Survos\JsonlBundle\Command\JsonlIndexCommand;
-use Survos\JsonlBundle\Command\JsonlInfoCommand;
-use Survos\JsonlBundle\Command\JsonlProfileCommand;
-use Survos\JsonlBundle\Command\JsonlStateCommand;
-use Survos\JsonlBundle\Command\JsonlVacuumCommand;
 use Survos\JsonlBundle\Sqlite\JsonlIndexer;
 use Survos\JsonlBundle\Sqlite\SqlProfiler;
 use Survos\JsonlBundle\Service\JsonlStateService;
@@ -21,15 +14,35 @@ use Survos\JsonlBundle\Service\JsonlStateRepository;
 use Survos\JsonlBundle\Service\SidecarService;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
-use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use Survos\Kit\AbstractSurvosBundle;
+use Survos\Kit\SurvosKitBundle;
+use Symfony\Component\DependencyInjection\Kernel\RequiredBundle;
+use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
+use Survos\JsonlBundle\IO\JsonlWriter;
 
-final class SurvosJsonlBundle extends AbstractBundle
+#[RequiredBundle(SurvosKitBundle::class)]
+// Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)
+final class SurvosJsonlBundle extends AbstractSurvosBundle
 {
+    public function configure(DefinitionConfigurator $definition): void
+    {
+        $definition->rootNode()->children()
+            ->integerNode('compression_level')->min(0)->max(9)->defaultValue(1)->end()
+        ->end();
+    }
+
+    public function boot(): void
+    {
+        JsonlWriter::setDefaultCompressionLevel($this->container->getParameter('survos_jsonl.compression_level'));
+    }
+
     public function loadExtension(
         array $config,
         ContainerConfigurator $container,
         ContainerBuilder $builder,
     ): void {
+        parent::loadExtension($config, $container, $builder);
+        $container->parameters()->set('survos_jsonl.compression_level', $config['compression_level']);
         $services = $container->services();
 
         // Core services
@@ -64,42 +77,6 @@ final class SurvosJsonlBundle extends AbstractBundle
 
         $services
             ->set(SqlProfiler::class)
-            ->autowire()
-            ->autoconfigure();
-
-        // Console commands
-        $services
-            ->set(JsonlCountCommand::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlStateCommand::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlInfoCommand::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlIndexCommand::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlProfileCommand::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlVacuumCommand::class)
-            ->autowire()
-            ->autoconfigure();
-
-        $services
-            ->set(JsonlCleanCommand::class)
             ->autowire()
             ->autoconfigure();
 

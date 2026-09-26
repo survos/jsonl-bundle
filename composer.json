@@ -5,6 +5,7 @@
     "type": "symfony-bundle",
     "require": {
         "php": "^8.5",
+        "survos/kit-bundle": "^2.0",
         "symfony/http-client": "^8.1",
         "symfony/framework-bundle": "^8.1",
         "symfony/dependency-injection": "^8.1",
