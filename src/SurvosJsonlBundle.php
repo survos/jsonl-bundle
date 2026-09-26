@@ -6,6 +6,7 @@ namespace Survos\JsonlBundle;
 use Survos\JsonlBundle\Sqlite\JsonlIndexer;
 use Survos\JsonlBundle\Sqlite\SqlProfiler;
 use Survos\JsonlBundle\Service\JsonlStateService;
+use Survos\JsonlBundle\Service\JsonlCompressService;
 use Survos\JsonlBundle\Service\JsonlCountService;
 use Survos\JsonlBundle\Service\JsonlProfiler;
 use Survos\JsonlBundle\Service\JsonlProfilerInterface;
@@ -82,6 +83,11 @@ final class SurvosJsonlBundle extends AbstractSurvosBundle
 
         $services
             ->set(JsonlStateRepository::class)
+            ->autowire()
+            ->autoconfigure();
+
+        $services
+            ->set(JsonlCompressService::class)
             ->autowire()
             ->autoconfigure();
 

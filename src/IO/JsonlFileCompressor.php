@@ -85,6 +85,8 @@ final class JsonlFileCompressor
             }
             $state->closeAll();
             if (!unlink($source)) { throw new RuntimeException('Cannot remove verified plain input.'); }
+            // The plain file's sidecar now describes a file that no longer exists.
+            if ($state->exists($target) && is_file($source.'.db')) { unlink($source.'.db'); }
             return $target;
         } finally {
             fclose($in);
