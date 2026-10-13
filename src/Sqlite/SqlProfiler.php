@@ -1,10 +1,9 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Sqlite;
 
-use PDO;
-use RuntimeException;
 use Survos\JsonlBundle\Util\Jsonl;
 
 /**
@@ -27,10 +26,10 @@ final class SqlProfiler
     public function profile(string $jsonlPath, int $topN = 20, int $maxDepth = 6, int $maxFields = 2000, bool $persist = true): ProfileResult
     {
         if (!is_file($jsonlPath)) {
-            throw new RuntimeException(sprintf('File not found: %s', $jsonlPath));
+            throw new \RuntimeException(sprintf('File not found: %s', $jsonlPath));
         }
 
-        $db = new SidecarDb($jsonlPath . '.db');
+        $db = new SidecarDb($jsonlPath.'.db');
         $pdo = $db->connection();
 
         RowStager::create($pdo);
@@ -64,7 +63,7 @@ final class SqlProfiler
     /**
      * @return array<string, array<string, mixed>> path => stat row
      */
-    private function computeStats(PDO $pdo, int $topN, int $maxDepth): array
+    private function computeStats(\PDO $pdo, int $topN, int $maxDepth): array
     {
         // depth = number of '.' in the JSON path; bounds pathological nesting.
         $depth = "(length(fullkey) - length(replace(fullkey, '.', '')))";
@@ -88,10 +87,10 @@ final class SqlProfiler
             $type = (string) $r['type'];
             $f['json_types'][$type] = $c;
             $f['present'] += $c;
-            if ($type !== 'null') {
+            if ('null' !== $type) {
                 $f['non_null'] += $c;
             }
-            if ($type === 'array') {
+            if ('array' === $type) {
                 $f['is_array'] = 1;
             }
             unset($f);
@@ -114,9 +113,9 @@ final class SqlProfiler
             $fields[$path]['distinct_n'] = (int) $r['distinct_n'];
             $fields[$path]['min_v'] = $r['min_v'];
             $fields[$path]['max_v'] = $r['max_v'];
-            $fields[$path]['len_min'] = $r['len_min'] !== null ? (int) $r['len_min'] : null;
-            $fields[$path]['len_max'] = $r['len_max'] !== null ? (int) $r['len_max'] : null;
-            $fields[$path]['len_avg'] = $r['len_avg'] !== null ? round((float) $r['len_avg'], 2) : null;
+            $fields[$path]['len_min'] = null !== $r['len_min'] ? (int) $r['len_min'] : null;
+            $fields[$path]['len_max'] = null !== $r['len_max'] ? (int) $r['len_max'] : null;
+            $fields[$path]['len_avg'] = null !== $r['len_avg'] ? round((float) $r['len_avg'], 2) : null;
         }
 
         // C) bounded top-N values per field (window function)
@@ -125,7 +124,7 @@ final class SqlProfiler
                         ROW_NUMBER() OVER (PARTITION BY fullkey ORDER BY COUNT(*) DESC, atom) rn
                     FROM _rows, json_tree(_rows.body)
                     WHERE $scalarWhere GROUP BY fullkey, atom
-                ) WHERE rn <= " . $topN . ' ORDER BY path, c DESC';
+                ) WHERE rn <= ".$topN.' ORDER BY path, c DESC';
         foreach ($pdo->query($sql) as $r) {
             $path = $this->normalize((string) $r['path']);
             if (!isset($fields[$path])) {
@@ -153,7 +152,7 @@ final class SqlProfiler
     /**
      * @param array<string, array<string, mixed>> $fields
      */
-    private function writeStats(PDO $pdo, array $fields): void
+    private function writeStats(\PDO $pdo, array $fields): void
     {
         $stmt = $pdo->prepare(
             'INSERT INTO field_stats
@@ -179,7 +178,7 @@ final class SqlProfiler
                     'top_values' => json_encode($f['top_values'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                     'is_array' => $f['is_array'],
                     'heuristics' => json_encode($f['heuristics'], JSON_UNESCAPED_SLASHES),
-                    'elements' => $f['elements'] !== null
+                    'elements' => null !== $f['elements']
                         ? json_encode($f['elements'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                         : null,
                 ]);
@@ -199,7 +198,7 @@ final class SqlProfiler
      *
      * @param array<string, array<string, mixed>> $fields
      */
-    private function buildView(PDO $pdo, array $fields): void
+    private function buildView(\PDO $pdo, array $fields): void
     {
         $pdo->exec('DROP VIEW IF EXISTS v_rows');
 
@@ -208,24 +207,24 @@ final class SqlProfiler
             if (($f['is_array'] ?? 0) === 1) {
                 continue; // arrays aren't projected as scalar columns
             }
-            $cols[] = sprintf('json_extract(body, %s) AS %s', $this->lit('$.' . $path), $this->ident($path));
+            $cols[] = sprintf('json_extract(body, %s) AS %s', $this->lit('$.'.$path), $this->ident($path));
         }
 
         if (count($cols) <= 1) {
             return;
         }
 
-        $pdo->exec('CREATE VIEW v_rows AS SELECT ' . implode(', ', $cols) . ' FROM _rows');
+        $pdo->exec('CREATE VIEW v_rows AS SELECT '.implode(', ', $cols).' FROM _rows');
     }
 
     private function lit(string $s): string
     {
-        return "'" . str_replace("'", "''", $s) . "'";
+        return "'".str_replace("'", "''", $s)."'";
     }
 
     private function ident(string $s): string
     {
-        return '"' . str_replace('"', '""', $s) . '"';
+        return '"'.str_replace('"', '""', $s).'"';
     }
 
     /**
@@ -258,16 +257,16 @@ final class SqlProfiler
      *
      * @return array{count:int,distinct:int,avgPerRow:float,top:list<array{value:mixed,count:int}>}
      */
-    private function arrayElements(PDO $pdo, string $path, int $topN, int $arrayRows): array
+    private function arrayElements(\PDO $pdo, string $path, int $topN, int $arrayRows): array
     {
-        $lit = "'" . str_replace("'", "''", '$.' . $path) . "'";
+        $lit = "'".str_replace("'", "''", '$.'.$path)."'";
 
         $agg = $pdo->query(
             "SELECT COUNT(*) AS total,
                 COUNT(DISTINCT CASE WHEN je.type NOT IN ('object','array') THEN je.value END) AS scalar_distinct
              FROM _rows, json_each(_rows.body, $lit) je
              WHERE json_type(_rows.body, $lit) = 'array'"
-        )->fetch(PDO::FETCH_ASSOC);
+        )->fetch(\PDO::FETCH_ASSOC);
 
         $total = (int) ($agg['total'] ?? 0);
         $distinct = (int) ($agg['scalar_distinct'] ?? 0);
@@ -277,7 +276,7 @@ final class SqlProfiler
                 FROM _rows, json_each(_rows.body, $lit) je
                 WHERE json_type(_rows.body, $lit) = 'array'
                   AND je.type NOT IN ('object','array')
-                GROUP BY je.value ORDER BY c DESC, v LIMIT " . $topN;
+                GROUP BY je.value ORDER BY c DESC, v LIMIT ".$topN;
         foreach ($pdo->query($sql) as $r) {
             $top[] = ['value' => $r['v'], 'count' => (int) $r['c']];
         }
@@ -302,7 +301,7 @@ final class SqlProfiler
 
     private function scalarToString(mixed $v): ?string
     {
-        return $v === null ? null : (string) $v;
+        return null === $v ? null : (string) $v;
     }
 
     /**
@@ -314,12 +313,12 @@ final class SqlProfiler
     {
         $strings = [];
         foreach ($topValues as $tv) {
-            if (is_string($tv['value']) && $tv['value'] !== '') {
+            if (is_string($tv['value']) && '' !== $tv['value']) {
                 $strings[] = $tv['value'];
             }
         }
         $n = count($strings);
-        if ($n === 0) {
+        if (0 === $n) {
             return [];
         }
 
@@ -328,7 +327,7 @@ final class SqlProfiler
         $nl = 0;
         foreach ($strings as $s) {
             $isUrl = (str_starts_with($s, 'http://') || str_starts_with($s, 'https://'))
-                && filter_var($s, FILTER_VALIDATE_URL) !== false;
+                && false !== filter_var($s, FILTER_VALIDATE_URL);
             if ($isUrl) {
                 ++$url;
                 $ext = strtolower(pathinfo((string) parse_url($s, PHP_URL_PATH), PATHINFO_EXTENSION));

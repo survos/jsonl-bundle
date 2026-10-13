@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Tests\Service;
@@ -23,12 +24,12 @@ final class JsonlStateRepositoryTest extends TestCase
     }
 
     #[Test]
-    public function it_loads_state_from_sidecar_and_checks_freshness(): void
+    public function itLoadsStateFromSidecarAndChecksFreshness(): void
     {
         $stateService = new JsonlStateService();
         $repo = new JsonlStateRepository($stateService);
 
-        $jsonl = $this->dir . '/data.jsonl';
+        $jsonl = $this->dir.'/data.jsonl';
         file_put_contents($jsonl, "{\"a\":1}\n", LOCK_EX);
 
         $stateService->touch($jsonl, rowsDelta: 1, bytesDelta: 7, captureFileFacts: true);
@@ -36,7 +37,7 @@ final class JsonlStateRepositoryTest extends TestCase
         $state = $repo->load($jsonl);
 
         self::assertSame($jsonl, $state->getJsonlPath());
-        self::assertSame($jsonl . '.db', $state->getSidecarPath());
+        self::assertSame($jsonl.'.db', $state->getSidecarPath());
         self::assertTrue($state->exists());
 
         $stats = $state->getStats();
@@ -52,12 +53,12 @@ final class JsonlStateRepositoryTest extends TestCase
     }
 
     #[Test]
-    public function freshness_becomes_false_if_jsonl_is_modified_outside_writer(): void
+    public function freshnessBecomesFalseIfJsonlIsModifiedOutsideWriter(): void
     {
         $stateService = new JsonlStateService();
         $repo = new JsonlStateRepository($stateService);
 
-        $jsonl = $this->dir . '/data.jsonl';
+        $jsonl = $this->dir.'/data.jsonl';
         file_put_contents($jsonl, "{\"a\":1}\n", LOCK_EX);
 
         $stateService->touch($jsonl, rowsDelta: 1, bytesDelta: 7, captureFileFacts: true);
@@ -73,10 +74,11 @@ final class JsonlStateRepositoryTest extends TestCase
     private function makeTempDir(): string
     {
         $base = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
-        $dir = $base . DIRECTORY_SEPARATOR . 'jsonl-bundle-' . bin2hex(random_bytes(8));
+        $dir = $base.DIRECTORY_SEPARATOR.'jsonl-bundle-'.bin2hex(random_bytes(8));
         if (!@mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf('Unable to create temp dir "%s".', $dir));
         }
+
         return $dir;
     }
 

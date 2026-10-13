@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Tests\Command;
@@ -31,9 +32,9 @@ final class JsonlStateCommandTest extends TestCase
     }
 
     #[Test]
-    public function it_reports_state_for_plain_jsonl(): void
+    public function itReportsStateForPlainJsonl(): void
     {
-        $jsonl = $this->dir . '/products.jsonl';
+        $jsonl = $this->dir.'/products.jsonl';
 
         $writer = JsonlWriter::open($jsonl);
         $writer->write(['id' => 1, 'name' => 'alpha']);
@@ -43,7 +44,7 @@ final class JsonlStateCommandTest extends TestCase
         $repo = new JsonlStateRepository();
 
         $command = $this->wrapInvokable(new JsonlStateCommand($repo));
-        $tester  = new CommandTester($command);
+        $tester = new CommandTester($command);
 
         $exit = $tester->execute(['path' => $jsonl]);
 
@@ -58,16 +59,16 @@ final class JsonlStateCommandTest extends TestCase
     }
 
     #[Test]
-    public function it_emits_json_output(): void
+    public function itEmitsJsonOutput(): void
     {
-        $jsonl = $this->dir . '/products.jsonl';
+        $jsonl = $this->dir.'/products.jsonl';
 
         $writer = JsonlWriter::open($jsonl);
         $writer->write(['id' => 10, 'name' => 'gamma']);
         $writer->finish(markComplete: true);
 
         $command = $this->wrapInvokable(new JsonlStateCommand(new JsonlStateRepository()));
-        $tester  = new CommandTester($command);
+        $tester = new CommandTester($command);
 
         $exit = $tester->execute(['path' => $jsonl, '--json' => true]);
 
@@ -103,7 +104,7 @@ final class JsonlStateCommandTest extends TestCase
             $path = (string) $input->getArgument('path');
 
             $ensure = (bool) $input->getOption('ensure');
-            $json   = (bool) $input->getOption('json');
+            $json = (bool) $input->getOption('json');
 
             return $handler($io, $path, $ensure, $json);
         });
@@ -114,10 +115,11 @@ final class JsonlStateCommandTest extends TestCase
     private function makeTempDir(): string
     {
         $base = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
-        $dir = $base . DIRECTORY_SEPARATOR . 'jsonl-bundle-' . bin2hex(random_bytes(8));
+        $dir = $base.DIRECTORY_SEPARATOR.'jsonl-bundle-'.bin2hex(random_bytes(8));
         if (!@mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf('Unable to create temp dir "%s".', $dir));
         }
+
         return $dir;
     }
 

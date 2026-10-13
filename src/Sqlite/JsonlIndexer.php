@@ -1,10 +1,9 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Sqlite;
 
-use InvalidArgumentException;
-use RuntimeException;
 use Survos\JsonlBundle\Util\Jsonl;
 
 /**
@@ -30,13 +29,13 @@ final class JsonlIndexer
     public function index(string $jsonlPath, array $pkFields = ['id'], array $facetFields = [], bool $persist = true): IndexResult
     {
         if (!is_file($jsonlPath)) {
-            throw new RuntimeException(sprintf('File not found: %s', $jsonlPath));
+            throw new \RuntimeException(sprintf('File not found: %s', $jsonlPath));
         }
-        if ($pkFields === []) {
+        if ([] === $pkFields) {
             $pkFields = ['id'];
         }
 
-        $db = new SidecarDb($jsonlPath . '.db');
+        $db = new SidecarDb($jsonlPath.'.db');
         $pdo = $db->connection();
 
         $gzip = Jsonl::isGzipPath($jsonlPath);
@@ -46,9 +45,9 @@ final class JsonlIndexer
         // Incremental tail-scan needs the persisted `_rows` cache to append to (so it
         // stays a whole-file materialization) AND the existing `idx` to upsert into.
         $incremental = !$gzip
-            && $prev !== null
-            && $prev->jsonlSize !== null
-            && $currentSize !== false
+            && null !== $prev
+            && null !== $prev->jsonlSize
+            && false !== $currentSize
             && $currentSize >= $prev->jsonlSize
             && $db->hasIdx()
             && $db->hasCache();
@@ -68,7 +67,7 @@ final class JsonlIndexer
 
         $pkExpr = $this->pkExpr($pkFields);
         $attrsExpr = $this->attrsExpr($facetFields);
-        $lineFilter = $incremental ? ' WHERE line_no > ' . $startLine : '';
+        $lineFilter = $incremental ? ' WHERE line_no > '.$startLine : '';
         $pdo->exec(sprintf(
             "INSERT INTO idx(pk, offset, line, attrs)
              SELECT COALESCE(%s, '#' || line_no), offset, line_no, %s
@@ -83,7 +82,7 @@ final class JsonlIndexer
         foreach ($facetFields as $field) {
             $pdo->exec(sprintf(
                 'CREATE INDEX IF NOT EXISTS %s ON idx(attrs ->> %s)',
-                $this->ident('ix_idx_' . $field),
+                $this->ident('ix_idx_'.$field),
                 $this->lit($this->jsonPath($field)),
             ));
         }
@@ -117,8 +116,8 @@ final class JsonlIndexer
 
         $size = filesize($path);
         $mtime = filemtime($path);
-        $meta->jsonlSize = $size !== false ? $size : null;
-        $meta->jsonlMtime = $mtime !== false ? $mtime : null;
+        $meta->jsonlSize = false !== $size ? $size : null;
+        $meta->jsonlMtime = false !== $mtime ? $mtime : null;
 
         $db->saveMeta($meta);
     }
@@ -133,7 +132,7 @@ final class JsonlIndexer
             $fields,
         );
 
-        return count($parts) === 1 ? $parts[0] : implode(" || ':' || ", $parts);
+        return 1 === count($parts) ? $parts[0] : implode(" || ':' || ", $parts);
     }
 
     /**
@@ -141,7 +140,7 @@ final class JsonlIndexer
      */
     private function attrsExpr(array $fields): string
     {
-        if ($fields === []) {
+        if ([] === $fields) {
             return 'NULL';
         }
 
@@ -151,26 +150,26 @@ final class JsonlIndexer
             $args[] = sprintf('body ->> %s', $this->lit($this->jsonPath($f)));
         }
 
-        return 'json_object(' . implode(', ', $args) . ')';
+        return 'json_object('.implode(', ', $args).')';
     }
 
     private function jsonPath(string $field): string
     {
         if (!preg_match('/^[A-Za-z0-9_.]+$/', $field)) {
-            throw new InvalidArgumentException(sprintf('Invalid field name: %s', $field));
+            throw new \InvalidArgumentException(sprintf('Invalid field name: %s', $field));
         }
 
-        return '$.' . $field;
+        return '$.'.$field;
     }
 
     private function lit(string $s): string
     {
-        return "'" . str_replace("'", "''", $s) . "'";
+        return "'".str_replace("'", "''", $s)."'";
     }
 
     private function ident(string $s): string
     {
-        return '"' . str_replace('"', '""', $s) . '"';
+        return '"'.str_replace('"', '""', $s).'"';
     }
 }
 

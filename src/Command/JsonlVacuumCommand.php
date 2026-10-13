@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -27,7 +28,7 @@ final class JsonlVacuumCommand
         #[Argument('Path to a .jsonl or .jsonl.gz file')]
         string $path,
     ): int {
-        $dbPath = $path . '.db';
+        $dbPath = $path.'.db';
         if (!is_file($dbPath)) {
             $io->warning(sprintf('No sidecar DB to vacuum: %s', $dbPath));
 
@@ -35,7 +36,7 @@ final class JsonlVacuumCommand
         }
 
         $dir = \dirname($path) ?: '.';
-        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_index_' . sha1($path));
+        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_index_'.sha1($path));
         $lock->acquire(true);
 
         try {

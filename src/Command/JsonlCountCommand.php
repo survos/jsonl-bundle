@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -19,7 +20,8 @@ final class JsonlCountCommand
 {
     public function __construct(
         private readonly JsonlStateService $stateService,
-    ) {}
+    ) {
+    }
 
     public function __invoke(
         SymfonyStyle $io,
@@ -38,11 +40,13 @@ final class JsonlCountCommand
             $rows[] = [(string) $count, $path];
 
             $io->table(['Rows', 'File'], $rows);
+
             return Command::SUCCESS;
         }
 
         if (!is_dir($path)) {
             $io->error(sprintf('Path not found: %s', $path));
+
             return Command::INVALID;
         }
 
@@ -64,13 +68,14 @@ final class JsonlCountCommand
             $total += $count;
         }
 
-        if ($rows === []) {
+        if ([] === $rows) {
             $io->warning('No JSONL files found.');
+
             return Command::SUCCESS;
         }
 
         // Sort descending by rows (nicer for real datasets)
-        usort($rows, static fn(array $a, array $b) => (int) $b[0] <=> (int) $a[0]);
+        usort($rows, static fn (array $a, array $b) => (int) $b[0] <=> (int) $a[0]);
 
         $rows[] = [(string) $total, 'TOTAL'];
 

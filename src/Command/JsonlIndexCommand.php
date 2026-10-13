@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -42,7 +43,7 @@ final class JsonlIndexCommand
         $facetFields = $this->splitList($facet);
 
         $dir = \dirname($path) ?: '.';
-        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_index_' . sha1($path));
+        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_index_'.sha1($path));
         $lock->acquire(true);
 
         try {
@@ -70,7 +71,7 @@ final class JsonlIndexCommand
     {
         return array_values(array_filter(
             array_map('trim', explode(',', $csv)),
-            static fn (string $s): bool => $s !== '',
+            static fn (string $s): bool => '' !== $s,
         ));
     }
 }

@@ -1,10 +1,12 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Survos\JsonlBundle\Tests\Command;
 
+use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Tester\CommandTester;
-use Symfony\Bundle\FrameworkBundle\Console\Application;
-use Survos\JsonlBundle\Command\JsonlDownloadCommand;
 
 class JsonlDownloadCommandTest extends KernelTestCase
 {
@@ -12,9 +14,9 @@ class JsonlDownloadCommandTest extends KernelTestCase
     {
         // Define paths to clean up after tests
         $filesToDelete = [
-            getcwd() . "/test/coleccion.json",
-            getcwd() . "/test.json",
-            getcwd() . "/coleccion.json",
+            getcwd().'/test/coleccion.json',
+            getcwd().'/test.json',
+            getcwd().'/coleccion.json',
         ];
 
         foreach ($filesToDelete as $file) {
@@ -23,8 +25,8 @@ class JsonlDownloadCommandTest extends KernelTestCase
             }
         }
 
-        if (is_dir(getcwd() . "/test")) {
-            rmdir(getcwd() . "/test");  // Only removes if directory is empty
+        if (is_dir(getcwd().'/test')) {
+            rmdir(getcwd().'/test');  // Only removes if directory is empty
         }
     }
 
@@ -45,7 +47,7 @@ class JsonlDownloadCommandTest extends KernelTestCase
         $commandTester->assertCommandIsSuccessful();
 
         $output = $commandTester->getDisplay();
-        $expectedFilePath = getcwd() . "/test/coleccion.json";
+        $expectedFilePath = getcwd().'/test/coleccion.json';
 
         $this->assertStringContainsString('jsonl:download: downloaded to', $output);
         $this->assertFileExists($expectedFilePath, "Expected file was not downloaded: $expectedFilePath");
@@ -68,7 +70,7 @@ class JsonlDownloadCommandTest extends KernelTestCase
         $commandTester->assertCommandIsSuccessful();
 
         $output = $commandTester->getDisplay();
-        $expectedFilePath = getcwd() . "/test.json";
+        $expectedFilePath = getcwd().'/test.json';
 
         $this->assertTrue(is_file($expectedFilePath), "Expected path is not a file: $expectedFilePath");
         $this->assertStringContainsString('jsonl:download: downloaded to', $output);
@@ -106,7 +108,7 @@ class JsonlDownloadCommandTest extends KernelTestCase
         ]);
 
         $output = $commandTester->getDisplay();
-        $expectedFilePath = getcwd() . "/data/coleccion.json";
+        $expectedFilePath = getcwd().'/data/coleccion.json';
         $this->assertStringContainsString('jsonl:download: downloaded to', $output);
         $this->assertFileExists($expectedFilePath, "Expected file was not downloaded: $expectedFilePath");
     }
@@ -150,6 +152,6 @@ class JsonlDownloadCommandTest extends KernelTestCase
         $output = $commandTester->getDisplay();
         $this->assertStringContainsString('jsonl:download: downloaded', $output);
         $this->assertStringContainsString('Unzipped', $output);
-        $this->assertFileExists(getcwd() . "/test/ajs");
+        $this->assertFileExists(getcwd().'/test/ajs');
     }
 }

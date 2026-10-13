@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -35,7 +36,7 @@ final class JsonlCleanCommand
     ): int {
         $targets = $this->collect($path, $recursive);
 
-        if ($targets === []) {
+        if ([] === $targets) {
             $io->success('No obsolete .sidecar.json files found.');
 
             return Command::SUCCESS;
@@ -76,8 +77,8 @@ final class JsonlCleanCommand
             $base = str_ends_with($path, '.sidecar.json') ? substr($path, 0, -\strlen('.sidecar.json')) : $path;
 
             return array_values(array_filter([
-                $base . '.sidecar.json',
-                $base . '.sidecar.json.tmp',
+                $base.'.sidecar.json',
+                $base.'.sidecar.json.tmp',
             ], 'is_file'));
         }
 

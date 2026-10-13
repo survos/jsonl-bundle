@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -44,7 +45,7 @@ final class JsonlProfileCommand
         }
 
         $dir = \dirname($path) ?: '.';
-        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_profile_' . sha1($path));
+        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_profile_'.sha1($path));
         $lock->acquire(true);
 
         try {
@@ -53,10 +54,10 @@ final class JsonlProfileCommand
             $lock->release();
         }
 
-        $stats = (new SidecarDb($path . '.db'))->loadFieldStats();
+        $stats = (new SidecarDb($path.'.db'))->loadFieldStats();
 
         if ($legacyJson) {
-            $profilePath = preg_replace('/\.jsonl(\.gz)?$/', '', $path) . '.profile.json';
+            $profilePath = preg_replace('/\.jsonl(\.gz)?$/', '', $path).'.profile.json';
             $profile = LegacyProfile::full($path, $result->rows, $stats);
             file_put_contents(
                 $profilePath,
@@ -76,15 +77,15 @@ final class JsonlProfileCommand
             $isArray = (bool) $s['is_array'];
             $elements = $s['elements'] ?? null;
             // for array fields, show element distinct + most-common element
-            $distinct = $isArray && $elements !== null ? (int) $elements['distinct'] : (int) $s['distinct_n'];
-            $top1 = $s['top_values'][0] ?? ($isArray && $elements !== null ? ($elements['top'][0] ?? null) : null);
+            $distinct = $isArray && null !== $elements ? (int) $elements['distinct'] : (int) $s['distinct_n'];
+            $top1 = $s['top_values'][0] ?? ($isArray && null !== $elements ? ($elements['top'][0] ?? null) : null);
             $rows[] = [
                 $s['path'],
                 implode(',', array_keys($s['json_types'])),
                 (string) $s['present'],
                 (string) $distinct,
-                $isArray ? sprintf('×%s', $elements !== null ? $elements['avgPerRow'] : '?') : '',
-                $top1 !== null ? sprintf('%s (%d)', $this->short((string) $top1['value']), $top1['count']) : '',
+                $isArray ? sprintf('×%s', null !== $elements ? $elements['avgPerRow'] : '?') : '',
+                null !== $top1 ? sprintf('%s (%d)', $this->short((string) $top1['value']), $top1['count']) : '',
                 implode(',', array_keys(array_filter($s['heuristics']))),
             ];
         }
@@ -104,6 +105,6 @@ final class JsonlProfileCommand
 
     private function short(string $s): string
     {
-        return mb_strlen($s) > 40 ? mb_substr($s, 0, 39) . '…' : $s;
+        return mb_strlen($s) > 40 ? mb_substr($s, 0, 39).'…' : $s;
     }
 }

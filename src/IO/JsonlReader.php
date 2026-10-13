@@ -1,10 +1,9 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\IO;
 
-use RuntimeException;
-use Traversable;
 use Survos\JsonlBundle\Contract\JsonlReaderInterface as ContractJsonlReaderInterface;
 use Survos\JsonlBundle\Model\JsonlState;
 use Survos\JsonlBundle\Service\JsonlStateService;
@@ -58,6 +57,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
     public function state(?JsonlStateService $state = null): JsonlState
     {
         $state ??= new JsonlStateService();
+
         return $state->load($this->path);
     }
 
@@ -86,15 +86,15 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
      */
     public function containsToken(string $tokenCode): bool
     {
-        $idx = $this->path . '.idx.json';
+        $idx = $this->path.'.idx.json';
 
         if (!is_file($idx)) {
             return false;
         }
 
-        if ($this->tokenIndex === null) {
+        if (null === $this->tokenIndex) {
             $raw = @file_get_contents($idx);
-            if ($raw === false || trim($raw) === '') {
+            if (false === $raw || '' === trim($raw)) {
                 $this->tokenIndex = [];
             } else {
                 $decoded = json_decode($raw, true);
@@ -117,8 +117,8 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
      */
     public function get(string $pk): ?array
     {
-        $offset = (new SidecarDb($this->path . '.db'))->lookupOffset($pk);
-        if ($offset === null) {
+        $offset = (new SidecarDb($this->path.'.db'))->lookupOffset($pk);
+        if (null === $offset) {
             return null;
         }
 
@@ -126,7 +126,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
 
         if ($gzip) {
             $handle = gzopen($this->path, 'rb');
-            if ($handle === false) {
+            if (false === $handle) {
                 return null;
             }
             try {
@@ -137,7 +137,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
             }
         } else {
             $handle = fopen($this->path, 'rb');
-            if ($handle === false) {
+            if (false === $handle) {
                 return null;
             }
             try {
@@ -148,7 +148,7 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
             }
         }
 
-        if ($line === false) {
+        if (false === $line) {
             return null;
         }
 
@@ -160,28 +160,28 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
     /**
      * Stream JSONL rows as associative arrays.
      *
-     * @return Traversable<int, array<string,mixed>>
+     * @return \Traversable<int, array<string,mixed>>
      */
-    public function getIterator(): Traversable
+    public function getIterator(): \Traversable
     {
         $gzip = Jsonl::isGzipPath($this->path);
-        $key  = $this->startAtLine;
+        $key = $this->startAtLine;
 
         if ($gzip) {
             $handle = @gzopen($this->path, 'rb');
-            if ($handle === false) {
-                throw new RuntimeException(sprintf('Unable to open gzipped JSONL file "%s" for reading.', $this->path));
+            if (false === $handle) {
+                throw new \RuntimeException(sprintf('Unable to open gzipped JSONL file "%s" for reading.', $this->path));
             }
 
             try {
                 while (!gzeof($handle)) {
                     $line = gzgets($handle);
-                    if ($line === false) {
+                    if (false === $line) {
                         break;
                     }
 
                     $line = trim($line);
-                    if ($line === '') {
+                    if ('' === $line) {
                         continue;
                     }
 
@@ -200,14 +200,14 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
         }
 
         $handle = @fopen($this->path, 'rb');
-        if ($handle === false) {
-            throw new RuntimeException(sprintf('Unable to open JSONL file "%s" for reading.', $this->path));
+        if (false === $handle) {
+            throw new \RuntimeException(sprintf('Unable to open JSONL file "%s" for reading.', $this->path));
         }
 
         try {
             while (($line = fgets($handle)) !== false) {
                 $line = trim($line);
-                if ($line === '') {
+                if ('' === $line) {
                     continue;
                 }
 

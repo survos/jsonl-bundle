@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 // File: src/Model/FieldStats.php
 // jsonl-bundle v0.14
@@ -73,14 +75,15 @@ final class FieldStats
             \Survos\JsonlBundle\Sqlite\SqlProfiler::class,
         );
 
-        if ($value === null || $value === '') {
-            $this->nulls++;
+        if (null === $value || '' === $value) {
+            ++$this->nulls;
+
             return;
         }
 
-        $this->total++;
+        ++$this->total;
 
-        if ($this->firstValue === null) {
+        if (null === $this->firstValue) {
             $this->firstValue = $value;
         }
 
@@ -90,14 +93,14 @@ final class FieldStats
 
             if (!array_key_exists($key, $this->distinctValues)) {
                 $this->distinctValues[$key] = 1;
-                $this->distinctCount++;
+                ++$this->distinctCount;
 
                 if ($this->distinctCount > self::DISTINCT_CAP) {
                     $this->distinctValues = [];
                     $this->distinctCapReached = true;
                 }
             } else {
-                $this->distinctValues[$key]++;
+                ++$this->distinctValues[$key];
             }
         }
 
@@ -118,15 +121,15 @@ final class FieldStats
 
         if (is_string($value)) {
             $len = mb_strlen($value);
-            $this->stringCount++;
+            ++$this->stringCount;
             $this->stringSumLength += $len;
-            $this->stringMinLength = $this->stringMinLength === null ? $len : min($this->stringMinLength, $len);
-            $this->stringMaxLength = $this->stringMaxLength === null ? $len : max($this->stringMaxLength, $len);
+            $this->stringMinLength = null === $this->stringMinLength ? $len : min($this->stringMinLength, $len);
+            $this->stringMaxLength = null === $this->stringMaxLength ? $len : max($this->stringMaxLength, $len);
         }
     }
 
     /**
-     * @return array<string,mixed>  Shape is compatible with existing artifacts.
+     * @return array<string,mixed> shape is compatible with existing artifacts
      */
     public function toArray(): array
     {
@@ -139,10 +142,10 @@ final class FieldStats
 
         $avgLen = null;
         if ($this->stringCount > 0) {
-            $avgLen = (float)$this->stringSumLength / $this->stringCount;
+            $avgLen = (float) $this->stringSumLength / $this->stringCount;
         }
 
-        $booleanLike    = $this->computeBooleanLike();
+        $booleanLike = $this->computeBooleanLike();
         $facetCandidate = $this->computeFacetCandidate($types);
         $this->storageHint = $this->computeStorageHint($types);
 
@@ -176,26 +179,26 @@ final class FieldStats
     {
         $self = new self($name);
 
-        $self->total = (int)($data['total'] ?? 0);
-        $self->nulls = (int)($data['nulls'] ?? 0);
-        $self->distinctCount = (int)($data['distinct'] ?? 0);
-        $self->distinctCapReached = (bool)($data['distinctCapReached'] ?? false);
+        $self->total = (int) ($data['total'] ?? 0);
+        $self->nulls = (int) ($data['nulls'] ?? 0);
+        $self->distinctCount = (int) ($data['distinct'] ?? 0);
+        $self->distinctCapReached = (bool) ($data['distinctCapReached'] ?? false);
 
         $types = $data['types'] ?? [];
         if (is_array($types)) {
             foreach ($types as $t) {
-                $t = (string)$t;
-                if ($t === 'int') {
+                $t = (string) $t;
+                if ('int' === $t) {
                     $self->flagInt = true;
-                } elseif ($t === 'float') {
+                } elseif ('float' === $t) {
                     $self->flagFloat = true;
-                } elseif ($t === 'bool') {
+                } elseif ('bool' === $t) {
                     $self->flagBool = true;
-                } elseif ($t === 'string') {
+                } elseif ('string' === $t) {
                     $self->flagString = true;
-                } elseif ($t === 'array') {
+                } elseif ('array' === $t) {
                     $self->flagArray = true;
-                } elseif ($t === 'object') {
+                } elseif ('object' === $t) {
                     $self->flagObject = true;
                 }
             }
@@ -203,13 +206,13 @@ final class FieldStats
 
         $stringLengths = $data['stringLengths'] ?? [];
         if (is_array($stringLengths)) {
-            $self->stringMinLength = isset($stringLengths['min']) ? (int)$stringLengths['min'] : null;
-            $self->stringMaxLength = isset($stringLengths['max']) ? (int)$stringLengths['max'] : null;
+            $self->stringMinLength = isset($stringLengths['min']) ? (int) $stringLengths['min'] : null;
+            $self->stringMaxLength = isset($stringLengths['max']) ? (int) $stringLengths['max'] : null;
             // We don't restore exact sum; average can be recomputed if needed.
         }
 
-        $self->firstValue  = $data['firstValue'] ?? null;
-        $self->storageHint = (string)($data['storageHint'] ?? '');
+        $self->firstValue = $data['firstValue'] ?? null;
+        $self->storageHint = (string) ($data['storageHint'] ?? '');
 
         return $self;
     }
@@ -253,7 +256,7 @@ final class FieldStats
 
     public function getDistinctLabel(): string
     {
-        $label = (string)$this->distinctCount;
+        $label = (string) $this->distinctCount;
         if ($this->distinctCapReached) {
             $label .= ' (capped)';
         }
@@ -292,7 +295,7 @@ final class FieldStats
 
     public function getRangeLabel(): string
     {
-        if ($this->stringMinLength === null || $this->stringMaxLength === null) {
+        if (null === $this->stringMinLength || null === $this->stringMaxLength) {
             return '';
         }
 
@@ -317,7 +320,7 @@ final class FieldStats
             return sprintf('%s (%d)', $displayValue, $rawCount);
         }
 
-        if ($this->firstValue !== null && $this->firstValue !== '') {
+        if (null !== $this->firstValue && '' !== $this->firstValue) {
             return $this->formatValueForDisplay($this->firstValue, $this->storageHint);
         }
 
@@ -330,8 +333,8 @@ final class FieldStats
 
     private function normalizeDistinctKey(mixed $value): string
     {
-        if (is_scalar($value) || $value === null) {
-            return (string)$value;
+        if (is_scalar($value) || null === $value) {
+            return (string) $value;
         }
 
         return json_encode($value);
@@ -339,7 +342,7 @@ final class FieldStats
 
     private function computeBooleanLike(): bool
     {
-        if ($this->distinctCapReached || $this->distinctCount === 0 || $this->distinctCount > 4) {
+        if ($this->distinctCapReached || 0 === $this->distinctCount || $this->distinctCount > 4) {
             return false;
         }
 
@@ -371,7 +374,7 @@ final class FieldStats
      */
     private function computeFacetCandidate(array $types): bool
     {
-        if ($this->distinctCapReached || $this->distinctCount === 0) {
+        if ($this->distinctCapReached || 0 === $this->distinctCount) {
             return false;
         }
 
@@ -380,7 +383,7 @@ final class FieldStats
             return false;
         }
 
-        if ($this->stringMaxLength !== null && $this->stringMaxLength > 128) {
+        if (null !== $this->stringMaxLength && $this->stringMaxLength > 128) {
             return false;
         }
 
@@ -412,7 +415,7 @@ final class FieldStats
             return 'float';
         }
 
-        if ($this->stringMaxLength !== null && $this->stringMaxLength > 255) {
+        if (null !== $this->stringMaxLength && $this->stringMaxLength > 255) {
             return 'text';
         }
 
@@ -424,7 +427,7 @@ final class FieldStats
      */
     private function buildDistribution(): ?array
     {
-        if ($this->distinctCapReached || $this->distinctCount === 0 || $this->distinctCount > self::DISTRIBUTION_LIMIT) {
+        if ($this->distinctCapReached || 0 === $this->distinctCount || $this->distinctCount > self::DISTRIBUTION_LIMIT) {
             return null;
         }
 
@@ -436,7 +439,7 @@ final class FieldStats
             $valuesOut[$val] = $count;
         }
 
-        if ($valuesOut === []) {
+        if ([] === $valuesOut) {
             return null;
         }
 
@@ -448,11 +451,11 @@ final class FieldStats
 
     private function formatValueForDisplay(mixed $value, string $storageHint): string
     {
-        if ($storageHint === 'int' || $storageHint === 'float' || $storageHint === 'bool' || $storageHint === 'json') {
-            return is_iterable($value) ? json_encode($value) : (string)$value;
+        if ('int' === $storageHint || 'float' === $storageHint || 'bool' === $storageHint || 'json' === $storageHint) {
+            return is_iterable($value) ? json_encode($value) : (string) $value;
         }
 
-        if ($storageHint === '' && is_numeric($value)) {
+        if ('' === $storageHint && is_numeric($value)) {
             return (string) $value;
         }
 

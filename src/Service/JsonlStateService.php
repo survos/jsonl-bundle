@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Service;
@@ -36,7 +37,7 @@ class JsonlStateService
     public function sidecarPath(string $jsonlPath): string
     {
         // Canonical state store is now the SQLite sidecar DB (ADR 0001).
-        return $jsonlPath . '.db';
+        return $jsonlPath.'.db';
     }
 
     public function exists(string $jsonlPath): bool
@@ -47,13 +48,14 @@ class JsonlStateService
     public function loadSidecar(string $jsonlPath): JsonlSidecar
     {
         $meta = $this->sidecarDb($jsonlPath)->loadMeta();
-        if ($meta !== null) {
+        if (null !== $meta) {
             return $this->metaToSidecar($meta);
         }
 
         // State lives in the SQLite sidecar (<file>.db). Obsolete .sidecar.json files
         // are no longer read — purge them with `jsonl:clean` (no migration).
         $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+
         return new JsonlSidecar(startedAt: $now, updatedAt: $now);
     }
 
@@ -84,6 +86,7 @@ class JsonlStateService
     public function ensure(string $jsonlPath): JsonlState
     {
         $this->touch($jsonlPath, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
+
         return $this->load($jsonlPath);
     }
 
@@ -102,7 +105,7 @@ class JsonlStateService
         $sc->rows += $rowsDelta;
         $sc->bytes += $bytesDelta;
         $sc->updatedAt = $now;
-        if ($context !== []) {
+        if ([] !== $context) {
             $sc->context = $this->mergeContext($sc->context, $context);
         }
 
@@ -162,18 +165,19 @@ class JsonlStateService
 
         if (Jsonl::isGzipPath($path)) {
             $fh = @gzopen($path, 'rb');
-            if ($fh === false) {
+            if (false === $fh) {
                 return 0;
             }
             try {
                 $lines = 0;
                 while (!gzeof($fh)) {
                     $chunk = gzread($fh, 1024 * 1024);
-                    if ($chunk === false || $chunk === '') {
+                    if (false === $chunk || '' === $chunk) {
                         break;
                     }
                     $lines += substr_count($chunk, "\n");
                 }
+
                 return $lines;
             } finally {
                 gzclose($fh);
@@ -181,18 +185,19 @@ class JsonlStateService
         }
 
         $fh = @fopen($path, 'rb');
-        if ($fh === false) {
+        if (false === $fh) {
             return 0;
         }
         try {
             $lines = 0;
             while (!feof($fh)) {
                 $chunk = fread($fh, 1024 * 1024);
-                if ($chunk === false || $chunk === '') {
+                if (false === $chunk || '' === $chunk) {
                     break;
                 }
                 $lines += substr_count($chunk, "\n");
             }
+
             return $lines;
         } finally {
             fclose($fh);
@@ -295,12 +300,13 @@ class JsonlStateService
     /**
      * @param array<string,mixed> $base
      * @param array<string,mixed> $context
+     *
      * @return array<string,mixed>
      */
     private function mergeContext(array $base, array $context): array
     {
         foreach ($context as $key => $value) {
-            if ($value === null) {
+            if (null === $value) {
                 unset($base[$key]);
                 continue;
             }

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Model;
@@ -64,9 +65,10 @@ final class JsonlSidecar
         if (is_int($v)) {
             return $v;
         }
-        if (is_string($v) && $v !== '' && ctype_digit($v)) {
+        if (is_string($v) && '' !== $v && ctype_digit($v)) {
             return (int) $v;
         }
+
         return 0;
     }
 
@@ -75,9 +77,10 @@ final class JsonlSidecar
         if (is_int($v)) {
             return $v;
         }
-        if (is_string($v) && $v !== '' && ctype_digit($v)) {
+        if (is_string($v) && '' !== $v && ctype_digit($v)) {
             return (int) $v;
         }
+
         return null;
     }
 }

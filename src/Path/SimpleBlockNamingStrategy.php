@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Path;
@@ -28,6 +29,6 @@ final class SimpleBlockNamingStrategy
         $baseDir = rtrim($baseDir, '/');
         $name = ltrim($name, '/');
 
-        return $baseDir . '/' . $name . $this->suffix;
+        return $baseDir.'/'.$name.$this->suffix;
     }
 }

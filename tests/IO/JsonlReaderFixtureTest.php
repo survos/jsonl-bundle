@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Tests\IO;
@@ -10,9 +11,9 @@ use Survos\JsonlBundle\IO\JsonlReader;
 final class JsonlReaderFixtureTest extends TestCase
 {
     #[Test]
-    public function it_reads_fixture_and_offsets_keys_only(): void
+    public function itReadsFixtureAndOffsetsKeysOnly(): void
     {
-        $path = __DIR__ . '/../Fixtures/data/products.jsonl';
+        $path = __DIR__.'/../Fixtures/data/products.jsonl';
 
         $r1 = new JsonlReader($path);
         $rows1 = iterator_to_array($r1);

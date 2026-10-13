@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Service;
@@ -25,20 +26,20 @@ interface JsonlProfilerInterface
      * @param iterable<array<string, mixed>> $rows
      *
      * @return array<string, array<string, mixed>> Field => stats
-     *     [
-     *       'total'              => int,
-     *       'nulls'              => int,
-     *       'distinct'           => int,
-     *       'distinctCapReached' => bool,
-     *       'types'              => string[],
-     *       'stringLengths'      => [
-     *           'min' => ?int,
-     *           'max' => ?int,
-     *           'avg' => ?float,
-     *       ],
-     *       'booleanLike'        => bool,
-     *       'storageHint'        => ?string
-     *     ]
+     *                                             [
+     *                                             'total'              => int,
+     *                                             'nulls'              => int,
+     *                                             'distinct'           => int,
+     *                                             'distinctCapReached' => bool,
+     *                                             'types'              => string[],
+     *                                             'stringLengths'      => [
+     *                                             'min' => ?int,
+     *                                             'max' => ?int,
+     *                                             'avg' => ?float,
+     *                                             ],
+     *                                             'booleanLike'        => bool,
+     *                                             'storageHint'        => ?string
+     *                                             ]
      */
     public function profile(iterable $rows): array;
 }

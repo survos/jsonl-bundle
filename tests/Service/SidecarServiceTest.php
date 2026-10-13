@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Tests\Service;
@@ -22,12 +23,12 @@ final class SidecarServiceTest extends TestCase
     }
 
     #[Test]
-    public function it_creates_and_updates_sidecar_with_file_facts(): void
+    public function itCreatesAndUpdatesSidecarWithFileFacts(): void
     {
         $svc = new SidecarService();
 
-        $jsonl = $this->dir . '/data.jsonl';
-        file_put_contents($jsonl, "{}", LOCK_EX);
+        $jsonl = $this->dir.'/data.jsonl';
+        file_put_contents($jsonl, '{}', LOCK_EX);
 
         self::assertFalse($svc->exists($jsonl));
 
@@ -57,10 +58,11 @@ final class SidecarServiceTest extends TestCase
     private function makeTempDir(): string
     {
         $base = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
-        $dir = $base . DIRECTORY_SEPARATOR . 'jsonl-bundle-' . bin2hex(random_bytes(8));
+        $dir = $base.DIRECTORY_SEPARATOR.'jsonl-bundle-'.bin2hex(random_bytes(8));
         if (!@mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf('Unable to create temp dir "%s".', $dir));
         }
+
         return $dir;
     }
 

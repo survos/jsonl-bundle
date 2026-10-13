@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Tests\IO;
@@ -23,9 +24,9 @@ final class JsonlWriterTest extends TestCase
     }
 
     #[Test]
-    public function it_writes_rows_updates_sidecar_and_finishes_with_reportable_state(): void
+    public function itWritesRowsUpdatesSidecarAndFinishesWithReportableState(): void
     {
-        $jsonl = $this->dir . '/out/products.jsonl';
+        $jsonl = $this->dir.'/out/products.jsonl';
 
         $writer = JsonlWriter::open($jsonl);
         $writer->write(['id' => 1, 'name' => 'a']);
@@ -52,9 +53,9 @@ final class JsonlWriterTest extends TestCase
     }
 
     #[Test]
-    public function token_index_skips_duplicates_without_incrementing_sidecar_rows(): void
+    public function tokenIndexSkipsDuplicatesWithoutIncrementingSidecarRows(): void
     {
-        $jsonl = $this->dir . '/out/dedupe.jsonl';
+        $jsonl = $this->dir.'/out/dedupe.jsonl';
 
         $writer = JsonlWriter::open($jsonl);
         $writer->write(['id' => 1], tokenCode: 'abc');
@@ -62,21 +63,22 @@ final class JsonlWriterTest extends TestCase
         $writer->write(['id' => 2], tokenCode: 'def');
         $result = $writer->finish(markComplete: true);
 
-        $repo  = new JsonlStateRepository();
+        $repo = new JsonlStateRepository();
         $state = $repo->load($jsonl);
 
         self::assertSame(2, $state->getStats()->getRows());
         self::assertTrue($result->state->getStats()->isCompleted());
-        self::assertFileExists($jsonl . '.idx.json');
+        self::assertFileExists($jsonl.'.idx.json');
     }
 
     private function makeTempDir(): string
     {
         $base = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
-        $dir = $base . DIRECTORY_SEPARATOR . 'jsonl-bundle-' . bin2hex(random_bytes(8));
+        $dir = $base.DIRECTORY_SEPARATOR.'jsonl-bundle-'.bin2hex(random_bytes(8));
         if (!@mkdir($dir, 0o775, true) && !is_dir($dir)) {
             throw new \RuntimeException(sprintf('Unable to create temp dir "%s".', $dir));
         }
+
         return $dir;
     }
 

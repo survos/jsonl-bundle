@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -20,7 +21,8 @@ final class JsonlInfoCommand
 {
     public function __construct(
         private readonly JsonlStateService $stateService,
-    ) {}
+    ) {
+    }
 
     public function __invoke(
         SymfonyStyle $io,
@@ -37,6 +39,7 @@ final class JsonlInfoCommand
 
         if (!is_dir($path)) {
             $io->error(sprintf('Path not found: %s', $path));
+
             return Command::INVALID;
         }
 
@@ -71,13 +74,14 @@ final class JsonlInfoCommand
             ];
         }
 
-        if ($rows === []) {
+        if ([] === $rows) {
             $io->warning('No JSONL files found.');
+
             return Command::SUCCESS;
         }
 
         // Sort by file path for stability
-        usort($rows, static fn(array $a, array $b) => strcmp($a[4], $b[4]));
+        usort($rows, static fn (array $a, array $b) => strcmp($a[4], $b[4]));
 
         $io->table(
             ['Rows', 'Complete', 'Updated', 'Started', 'File'],
@@ -92,6 +96,7 @@ final class JsonlInfoCommand
         $exists = is_file($filePath);
         if (!$exists) {
             $io->error(sprintf('File not found: %s', $filePath));
+
             return Command::INVALID;
         }
 
@@ -100,7 +105,7 @@ final class JsonlInfoCommand
         $scExists = $this->stateService->exists($filePath);
         $sc = $scExists ? $this->stateService->loadSidecar($filePath) : null;
 
-        $db = new SidecarDb($filePath . '.db');
+        $db = new SidecarDb($filePath.'.db');
         $hasIdx = $db->hasIdx();
 
         $io->title('JSONL info');

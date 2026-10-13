@@ -1,25 +1,25 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle;
 
-use Survos\JsonlBundle\Sqlite\JsonlIndexer;
-use Survos\JsonlBundle\Sqlite\SqlProfiler;
-use Survos\JsonlBundle\Service\JsonlStateService;
+use Survos\JsonlBundle\IO\JsonlWriter;
 use Survos\JsonlBundle\Service\JsonlCompressService;
 use Survos\JsonlBundle\Service\JsonlCountService;
 use Survos\JsonlBundle\Service\JsonlProfiler;
 use Survos\JsonlBundle\Service\JsonlProfilerInterface;
-use Survos\JsonlBundle\Service\JsonlSidecarNamer;
 use Survos\JsonlBundle\Service\JsonlStateRepository;
+use Survos\JsonlBundle\Service\JsonlStateService;
 use Survos\JsonlBundle\Service\SidecarService;
-use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Survos\JsonlBundle\Sqlite\JsonlIndexer;
+use Survos\JsonlBundle\Sqlite\SqlProfiler;
 use Survos\Kit\AbstractSurvosBundle;
 use Survos\Kit\SurvosKitBundle;
-use Symfony\Component\DependencyInjection\Kernel\RequiredBundle;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
-use Survos\JsonlBundle\IO\JsonlWriter;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Kernel\RequiredBundle;
+use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 #[RequiredBundle(SurvosKitBundle::class)]
 // Symfony\Component\HttpKernel\Bundle\Bundle <-- Flex auto-registration marker (see Survos\Kit\AbstractSurvosBundle)

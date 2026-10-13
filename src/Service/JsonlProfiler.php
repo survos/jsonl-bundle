@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Service;
@@ -26,7 +27,7 @@ namespace Survos\JsonlBundle\Service;
 final class JsonlProfiler implements JsonlProfilerInterface
 {
     /** @var string[] */
-    private const IMAGE_EXTENSIONS = ['jpg','jpeg','png','gif','webp','avif','svg','bmp'];
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'bmp'];
 
     /** @var string[] */
     private const LIST_DELIMITERS = [';', '|', ','];
@@ -38,16 +39,16 @@ final class JsonlProfiler implements JsonlProfilerInterface
      * @var array<string, string[]>
      */
     private const STOPWORDS = [
-        'en' => ['the','and','of','to','in','for','with','on','at','by','from','is','are','was','were','be','as','or'],
-        'nl' => ['de','het','een','en','van','voor','met','op','aan','bij','uit','is','zijn','was','waren','te','als','of'],
-        'fr' => ['le','la','les','un','une','et','de','des','pour','avec','sur','à','par','dans','est','sont','été','ou'],
-        'es' => ['el','la','los','las','un','una','y','de','del','para','con','en','a','por','es','son','fue','o'],
+        'en' => ['the', 'and', 'of', 'to', 'in', 'for', 'with', 'on', 'at', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'as', 'or'],
+        'nl' => ['de', 'het', 'een', 'en', 'van', 'voor', 'met', 'op', 'aan', 'bij', 'uit', 'is', 'zijn', 'was', 'waren', 'te', 'als', 'of'],
+        'fr' => ['le', 'la', 'les', 'un', 'une', 'et', 'de', 'des', 'pour', 'avec', 'sur', 'à', 'par', 'dans', 'est', 'sont', 'été', 'ou'],
+        'es' => ['el', 'la', 'los', 'las', 'un', 'una', 'y', 'de', 'del', 'para', 'con', 'en', 'a', 'por', 'es', 'son', 'fue', 'o'],
     ];
 
     /**
-     * @param int $distinctCap   Maximum distinct values to track per field.
-     * @param int $sampleCap     Maximum sample strings to keep per field for heuristics.
-     * @param array<string,mixed> $hints Optional per-field hints to guide profiling.
+     * @param int                 $distinctCap maximum distinct values to track per field
+     * @param int                 $sampleCap   maximum sample strings to keep per field for heuristics
+     * @param array<string,mixed> $hints       Optional per-field hints to guide profiling.
      *
      * Hints shape (all optional):
      *   [
@@ -78,14 +79,14 @@ final class JsonlProfiler implements JsonlProfilerInterface
             'The in-PHP %s is deprecated; profile files with %s (SQL, bounded) and read %s instead.',
             self::class,
             \Survos\JsonlBundle\Sqlite\SqlProfiler::class,
-            \Survos\JsonlBundle\Sqlite\SidecarDb::class . '::loadFieldStats()',
+            \Survos\JsonlBundle\Sqlite\SidecarDb::class.'::loadFieldStats()',
         );
 
         /** @var array<string, array<string, mixed>> $stats */
         $stats = [];
 
         foreach ($rows as $row) {
-//            assert(is_array($row), "Row is not an array");
+            //            assert(is_array($row), "Row is not an array");
 
             foreach ($row as $field => $value) {
                 if (!\array_key_exists($field, $stats)) {
@@ -93,10 +94,10 @@ final class JsonlProfiler implements JsonlProfilerInterface
                 }
 
                 $fieldStats = &$stats[$field];
-                $fieldStats['total']++;
+                ++$fieldStats['total'];
 
-                if ($value === null) {
-                    $fieldStats['nulls']++;
+                if (null === $value) {
+                    ++$fieldStats['nulls'];
                     unset($fieldStats);
                     continue;
                 }
@@ -183,54 +184,54 @@ final class JsonlProfiler implements JsonlProfilerInterface
     private function createEmptyFieldStats(): array
     {
         return [
-            'total'              => 0,
-            'nulls'              => 0,
-            'distinct'           => 0,
+            'total' => 0,
+            'nulls' => 0,
+            'distinct' => 0,
             'distinctCapReached' => false,
-            'types'              => [],
+            'types' => [],
 
             // internal scratch (removed at end)
-            'distinctValues'     => [],
-            'sampleStrings'      => [],
+            'distinctValues' => [],
+            'sampleStrings' => [],
 
             // string lengths
-            'stringLengths'      => [
-                'min'   => null,
-                'max'   => null,
-                'avg'   => null,
-                'sum'   => 0,
+            'stringLengths' => [
+                'min' => null,
+                'max' => null,
+                'avg' => null,
+                'sum' => 0,
                 'count' => 0,
             ],
 
             // boolean-like
-            'booleanLike'        => false,
+            'booleanLike' => false,
 
             // inferred
-            'storageHint'        => null,
+            'storageHint' => null,
 
             // string-like hints (counters)
-            '_stringSamples'     => 0,
-            '_urlHits'           => 0,
-            '_jsonHits'          => 0,
-            '_imageHits'         => 0,
+            '_stringSamples' => 0,
+            '_urlHits' => 0,
+            '_jsonHits' => 0,
+            '_imageHits' => 0,
 
             // split candidate counters
             '_split' => [
                 'checked' => 0,
                 // per delimiter: parsedRows, partsSum, tokenLenSum, tokenLenCount, tokenLenMax
-                'delims'  => [],
+                'delims' => [],
                 // tiny reservoir for token-length median-ish estimation
                 'tokenLens' => [],
             ],
 
             // array element stats
             'arrayStats' => [
-                'arrays'        => 0,
-                'elements'      => 0,
-                'elemTypes'     => [],
-                'elemStrLens'   => ['min' => null, 'max' => null, 'sum' => 0, 'count' => 0],
-                'elemDistinct'  => 0,
-                'elemCapReached'=> false,
+                'arrays' => 0,
+                'elements' => 0,
+                'elemTypes' => [],
+                'elemStrLens' => ['min' => null, 'max' => null, 'sum' => 0, 'count' => 0],
+                'elemDistinct' => 0,
+                'elemCapReached' => false,
                 // scratch
                 '_elemDistinctValues' => [],
             ],
@@ -240,42 +241,42 @@ final class JsonlProfiler implements JsonlProfilerInterface
     private function normalizeType(mixed $value): string
     {
         return match (true) {
-            \is_int($value)    => 'int',
-            \is_float($value)  => 'float',
-            \is_bool($value)   => 'bool',
+            \is_int($value) => 'int',
+            \is_float($value) => 'float',
+            \is_bool($value) => 'bool',
             \is_string($value) => 'string',
-            \is_array($value)  => 'array',
-            default            => 'other',
+            \is_array($value) => 'array',
+            default => 'other',
         };
     }
 
     private function accumulateStringStats(array &$fieldStats, string $value): void
     {
-        $fieldStats['_stringSamples']++;
+        ++$fieldStats['_stringSamples'];
 
-        $len     = \strlen($value);
+        $len = \strlen($value);
         $lengths = &$fieldStats['stringLengths'];
 
-        $lengths['min'] = $lengths['min'] === null ? $len : \min((int) $lengths['min'], $len);
-        $lengths['max'] = $lengths['max'] === null ? $len : \max((int) $lengths['max'], $len);
+        $lengths['min'] = null === $lengths['min'] ? $len : \min((int) $lengths['min'], $len);
+        $lengths['max'] = null === $lengths['max'] ? $len : \max((int) $lengths['max'], $len);
         $lengths['sum'] += $len;
-        $lengths['count']++;
+        ++$lengths['count'];
 
         unset($lengths);
 
         // URL-like
         if ($this->isUrlLike($value)) {
-            $fieldStats['_urlHits']++;
+            ++$fieldStats['_urlHits'];
         }
 
         // JSON-like string
         if ($this->isJsonLikeString($value)) {
-            $fieldStats['_jsonHits']++;
+            ++$fieldStats['_jsonHits'];
         }
 
         // image-like URL/path
         if ($this->isImageLike($value)) {
-            $fieldStats['_imageHits']++;
+            ++$fieldStats['_imageHits'];
         }
 
         // split candidate evidence (structure-based; not length-based)
@@ -288,10 +289,10 @@ final class JsonlProfiler implements JsonlProfilerInterface
     private function accumulateArrayStats(array &$fieldStats, array $value): void
     {
         $a = &$fieldStats['arrayStats'];
-        $a['arrays']++;
+        ++$a['arrays'];
 
         foreach ($value as $elem) {
-            $a['elements']++;
+            ++$a['elements'];
 
             $t = $this->normalizeType($elem);
             if (!\in_array($t, $a['elemTypes'], true)) {
@@ -302,15 +303,15 @@ final class JsonlProfiler implements JsonlProfilerInterface
             if (\is_string($elem)) {
                 $l = \strlen($elem);
                 $ls = &$a['elemStrLens'];
-                $ls['min'] = $ls['min'] === null ? $l : \min((int) $ls['min'], $l);
-                $ls['max'] = $ls['max'] === null ? $l : \max((int) $ls['max'], $l);
+                $ls['min'] = null === $ls['min'] ? $l : \min((int) $ls['min'], $l);
+                $ls['max'] = null === $ls['max'] ? $l : \max((int) $ls['max'], $l);
                 $ls['sum'] += $l;
-                $ls['count']++;
+                ++$ls['count'];
                 unset($ls);
             }
 
             // element distinct (string/int/bool only), capped
-            if (\is_scalar($elem) || $elem === null) {
+            if (\is_scalar($elem) || null === $elem) {
                 if (\count($a['_elemDistinctValues']) < $this->distinctCap) {
                     $a['_elemDistinctValues'][(string) $elem] = true;
                 } else {
@@ -345,20 +346,21 @@ final class JsonlProfiler implements JsonlProfilerInterface
             $fieldStats['jsonLike'] = false;
             $fieldStats['imageLike'] = false;
             unset($fieldStats['_stringSamples'], $fieldStats['_urlHits'], $fieldStats['_jsonHits'], $fieldStats['_imageHits']);
+
             return;
         }
 
-        $urlRatio   = ((int) $fieldStats['_urlHits']) / $n;
-        $jsonRatio  = ((int) $fieldStats['_jsonHits']) / $n;
+        $urlRatio = ((int) $fieldStats['_urlHits']) / $n;
+        $jsonRatio = ((int) $fieldStats['_jsonHits']) / $n;
         $imageRatio = ((int) $fieldStats['_imageHits']) / $n;
 
         // conservative defaults
-        $fieldStats['urlLike']   = $urlRatio >= 0.60 && $fieldStats['_urlHits'] >= 3;
-        $fieldStats['jsonLike']  = $jsonRatio >= 0.60 && $fieldStats['_jsonHits'] >= 3;
+        $fieldStats['urlLike'] = $urlRatio >= 0.60 && $fieldStats['_urlHits'] >= 3;
+        $fieldStats['jsonLike'] = $jsonRatio >= 0.60 && $fieldStats['_jsonHits'] >= 3;
         $fieldStats['imageLike'] = $imageRatio >= 0.50 && $fieldStats['_imageHits'] >= 3;
 
         // allow forcing off via hints
-        foreach (['urlLike','jsonLike','imageLike'] as $k) {
+        foreach (['urlLike', 'jsonLike', 'imageLike'] as $k) {
             if (isset($fieldHint['force'][$k]) && \is_bool($fieldHint['force'][$k])) {
                 $fieldStats[$k] = $fieldHint['force'][$k];
             }
@@ -372,6 +374,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
         if (!empty($fieldHint['disableSplitCandidate'])) {
             $fieldStats['splitCandidate'] = ['enabled' => false];
             unset($fieldStats['_split']);
+
             return;
         }
 
@@ -379,6 +382,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
         if ($checked <= 0) {
             $fieldStats['splitCandidate'] = ['enabled' => false];
             unset($fieldStats['_split']);
+
             return;
         }
 
@@ -414,7 +418,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
             }
 
             // comma is ambiguous; require stronger evidence
-            if ($delim === ',') {
+            if (',' === $delim) {
                 $score *= 0.75;
                 if ($ratio < 0.35) {
                     $score *= 0.5;
@@ -422,13 +426,13 @@ final class JsonlProfiler implements JsonlProfilerInterface
             }
 
             // honor preferDelimiter slightly
-            if (\is_string($prefer) && $prefer !== '' && $prefer === $delim) {
+            if (\is_string($prefer) && '' !== $prefer && $prefer === $delim) {
                 $score += 0.08;
             }
 
             $score *= $paragraphPenalty;
 
-            if ($best === null || $score > $best['score']) {
+            if (null === $best || $score > $best['score']) {
                 $best = [
                     'delimiter' => $delim,
                     'ratio' => $ratio,
@@ -440,9 +444,10 @@ final class JsonlProfiler implements JsonlProfilerInterface
             }
         }
 
-        if ($best === null) {
+        if (null === $best) {
             $fieldStats['splitCandidate'] = ['enabled' => false];
             unset($fieldStats['_split']);
+
             return;
         }
 
@@ -456,12 +461,12 @@ final class JsonlProfiler implements JsonlProfilerInterface
         }
 
         $fieldStats['splitCandidate'] = [
-            'enabled'    => $enabled,
-            'delimiter'  => $best['delimiter'],
-            'ratio'      => \round($best['ratio'], 4),
-            'avgParts'   => \round($best['avgParts'], 3),
-            'avgTokenLen'=> \round($best['avgTokenLen'], 3),
-            'maxTokenLen'=> $best['maxTokenLen'],
+            'enabled' => $enabled,
+            'delimiter' => $best['delimiter'],
+            'ratio' => \round($best['ratio'], 4),
+            'avgParts' => \round($best['avgParts'], 3),
+            'avgTokenLen' => \round($best['avgTokenLen'], 3),
+            'maxTokenLen' => $best['maxTokenLen'],
             'confidence' => \round($confidence, 4),
         ];
 
@@ -471,8 +476,9 @@ final class JsonlProfiler implements JsonlProfilerInterface
     private function finalizeNaturalLanguageLike(array &$fieldStats, array $fieldHint): void
     {
         $samples = $fieldStats['sampleStrings'] ?? [];
-        if (!\is_array($samples) || $samples === []) {
+        if (!\is_array($samples) || [] === $samples) {
             $fieldStats['naturalLanguageLike'] = false;
+
             return;
         }
 
@@ -487,37 +493,37 @@ final class JsonlProfiler implements JsonlProfilerInterface
                 continue;
             }
             $s = \trim($s);
-            if ($s === '') {
+            if ('' === $s) {
                 continue;
             }
 
             // quick filters: code-ish strings aren’t NL
             if ($this->looksCodeLike($s)) {
-                $checked++;
+                ++$checked;
                 continue;
             }
 
             // we want multi-word strings; single tokens are rarely “natural language”
             if (\substr_count($s, ' ') < 1) {
-                $checked++;
+                ++$checked;
                 continue;
             }
 
             // tokenize alpha words
             $words = \preg_split('/[^\\p{L}]+/u', \mb_strtolower($s), -1, \PREG_SPLIT_NO_EMPTY) ?: [];
             if (\count($words) < 3) {
-                $checked++;
+                ++$checked;
                 continue;
             }
 
-            $checked++;
+            ++$checked;
 
             foreach ($scores as $lang => $_) {
                 $stop = self::STOPWORDS[$lang];
                 $hit = 0;
                 foreach ($words as $w) {
                     if (\in_array($w, $stop, true)) {
-                        $hit++;
+                        ++$hit;
                     }
                 }
                 if ($hit >= 1) {
@@ -529,13 +535,14 @@ final class JsonlProfiler implements JsonlProfilerInterface
             if (!$this->isUrlLike($s) && !$this->isJsonLikeString($s)) {
                 $digits = \preg_match_all('/\\d/', $s) ?: 0;
                 if ($digits <= \max(2, (int) (\strlen($s) / 25))) {
-                    $nlHits++;
+                    ++$nlHits;
                 }
             }
         }
 
-        if ($checked === 0) {
+        if (0 === $checked) {
             $fieldStats['naturalLanguageLike'] = false;
+
             return;
         }
 
@@ -549,7 +556,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
             }
         }
 
-        if (\is_string($forcedLocale) && $forcedLocale !== '') {
+        if (\is_string($forcedLocale) && '' !== $forcedLocale) {
             $bestLocale = $forcedLocale;
         }
 
@@ -580,16 +587,16 @@ final class JsonlProfiler implements JsonlProfilerInterface
         $distinct = (int) ($fieldStats['distinct'] ?? 0);
         if ($distinct <= 6 && \in_array('string', $types, true)) {
             $values = $fieldStats['distinctValues'] ?? [];
-            if (!\is_array($values) || $values === []) {
+            if (!\is_array($values) || [] === $values) {
                 return false;
             }
 
             $keys = \array_keys($values);
-            $normalized = \array_map(static fn(string $v) => \strtolower(\trim($v)), $keys);
+            $normalized = \array_map(static fn (string $v) => \strtolower(\trim($v)), $keys);
 
-            $allowed = ['0','1','true','false','yes','no','y','n','t','f'];
+            $allowed = ['0', '1', 'true', 'false', 'yes', 'no', 'y', 'n', 't', 'f'];
             foreach ($normalized as $v) {
-                if ($v === '') {
+                if ('' === $v) {
                     continue;
                 }
                 if (!\in_array($v, $allowed, true)) {
@@ -606,7 +613,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
     private function inferStorageHint(array $fieldStats): ?string
     {
         $types = $fieldStats['types'] ?? [];
-        if (!\is_array($types) || $types === []) {
+        if (!\is_array($types) || [] === $types) {
             return null;
         }
 
@@ -644,22 +651,24 @@ final class JsonlProfiler implements JsonlProfilerInterface
         if (!\str_starts_with($s, 'http://') && !\str_starts_with($s, 'https://')) {
             return false;
         }
-        return \filter_var($s, \FILTER_VALIDATE_URL) !== false;
+
+        return false !== \filter_var($s, \FILTER_VALIDATE_URL);
     }
 
     private function isJsonLikeString(string $s): bool
     {
         $t = \ltrim($s);
-        if ($t === '' || \strlen($t) > 4096) {
+        if ('' === $t || \strlen($t) > 4096) {
             return false;
         }
         $c = $t[0];
-        if ($c !== '{' && $c !== '[') {
+        if ('{' !== $c && '[' !== $c) {
             return false;
         }
 
         try {
             \json_decode($t, true, 32, \JSON_THROW_ON_ERROR);
+
             return true;
         } catch (\Throwable) {
             return false;
@@ -669,11 +678,12 @@ final class JsonlProfiler implements JsonlProfilerInterface
     private function isImageLike(string $s): bool
     {
         $path = \parse_url($s, \PHP_URL_PATH);
-        if (!\is_string($path) || $path === '') {
+        if (!\is_string($path) || '' === $path) {
             $path = $s;
         }
         $ext = \strtolower(\pathinfo($path, \PATHINFO_EXTENSION));
-        return $ext !== '' && \in_array($ext, self::IMAGE_EXTENSIONS, true);
+
+        return '' !== $ext && \in_array($ext, self::IMAGE_EXTENSIONS, true);
     }
 
     private function looksCodeLike(string $s): bool
@@ -688,7 +698,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
 
         // Code-ish if punctuation density is high and spaces are low
         $spaces = \substr_count($s, ' ');
-        if ($spaces === 0 && ($punct >= 3 || $digits >= 4)) {
+        if (0 === $spaces && ($punct >= 3 || $digits >= 4)) {
             return true;
         }
 
@@ -708,12 +718,12 @@ final class JsonlProfiler implements JsonlProfilerInterface
         }
 
         $s = \trim($value);
-        if ($s === '') {
+        if ('' === $s) {
             return;
         }
 
         // “checked” counts strings that are eligible for split detection
-        $fieldStats['_split']['checked']++;
+        ++$fieldStats['_split']['checked'];
 
         // keep effort bounded
         if (\strlen($s) > 4000) {
@@ -726,13 +736,13 @@ final class JsonlProfiler implements JsonlProfilerInterface
             }
 
             // Avoid comma splitting on numbers like "1,234" or "12,5"
-            if ($delim === ',' && \preg_match('/\\d,\\d/', $s) === 1) {
+            if (',' === $delim && 1 === \preg_match('/\\d,\\d/', $s)) {
                 continue;
             }
 
             $parts = \explode($delim, $s);
             $parts = \array_map('trim', $parts);
-            $parts = \array_values(\array_filter($parts, static fn($p) => $p !== ''));
+            $parts = \array_values(\array_filter($parts, static fn ($p) => '' !== $p));
 
             if (\count($parts) < 2) {
                 continue;
@@ -746,7 +756,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
             foreach ($parts as $p) {
                 $l = \strlen($p);
                 $tokenLenSum += $l;
-                $tokenLenCount++;
+                ++$tokenLenCount;
                 $tokenLenMax = \max($tokenLenMax, $l);
 
                 // keep a tiny reservoir for debugging/tuning (not surfaced)
@@ -766,7 +776,7 @@ final class JsonlProfiler implements JsonlProfilerInterface
                 ];
             }
 
-            $d['parsed']++;
+            ++$d['parsed'];
             $d['partsSum'] += \count($parts);
             $d['tokenLenSum'] += $tokenLenSum;
             $d['tokenLenCount'] += $tokenLenCount;

@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Service;
@@ -33,8 +34,9 @@ final class JsonlCompressService
     ): int {
         $level ??= JsonlWriter::getDefaultCompressionLevel();
         $files = is_dir($path) ? $this->collect($path, $recursive) : [$path];
-        if ($files === []) {
+        if ([] === $files) {
             $io->success('No plain .jsonl files found.');
+
             return Command::SUCCESS;
         }
 
@@ -60,15 +62,16 @@ final class JsonlCompressService
 
         if ($dryRun) {
             $io->note(sprintf('%d file(s) would be compressed at level %d.', count($files), $level));
+
             return Command::SUCCESS;
         }
-        if ($failed !== []) {
+        if ([] !== $failed) {
             $io->table(['File', 'Error (original kept)'], $failed);
         }
         $done = count($files) - count($failed);
         $io->success(sprintf('%d file(s) compressed at level %d: %s → %s bytes.', $done, $level, number_format($before), number_format($after)));
 
-        return $failed === [] ? Command::SUCCESS : Command::FAILURE;
+        return [] === $failed ? Command::SUCCESS : Command::FAILURE;
     }
 
     /** @return list<string> */

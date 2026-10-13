@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\IO;
@@ -6,7 +7,6 @@ namespace Survos\JsonlBundle\IO;
 use Survos\JsonlBundle\Contract\JsonlWriterInterface;
 use Survos\JsonlBundle\Model\JsonlWriterResult;
 use Survos\JsonlBundle\Service\JsonlStateService;
-
 use Survos\JsonlBundle\Util\Jsonl;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\LockInterface;
@@ -47,7 +47,7 @@ final class JsonlWriter implements JsonlWriterInterface
     }
 
     /** @var resource|null */
-    private $fh = null;
+    private $fh;
 
     private bool $gzip;
     private string $filename;
@@ -81,9 +81,9 @@ final class JsonlWriter implements JsonlWriterInterface
 
     public function __construct(string $filename)
     {
-        $this->filename  = $filename;
-        $this->gzip      = Jsonl::isGzipPath($filename);
-        $this->indexFile = $filename . '.idx.json';
+        $this->filename = $filename;
+        $this->gzip = Jsonl::isGzipPath($filename);
+        $this->indexFile = $filename.'.idx.json';
         $this->stateService = new JsonlStateService();
     }
 
@@ -99,15 +99,13 @@ final class JsonlWriter implements JsonlWriterInterface
      *  - dir_perms (int) default 0775
      *  - reset_sidecars (bool) default true (only relevant for mode 'w')
      *  - lock (bool) default true
-     *
      */
     public static function open(
         string $filename,
         string $mode = 'w',
         ?JsonlWriterOptions $options = null,
         ?int $compressionLevel = null,
-    ): self
-    {
+    ): self {
         $compressionLevel ??= self::$defaultCompressionLevel;
         self::validateCompressionLevel($compressionLevel);
         $options ??= JsonlWriterOptions::defaults();
@@ -134,7 +132,7 @@ final class JsonlWriter implements JsonlWriterInterface
             $writer->acquireLock();
         }
 
-        if ($mode === 'w') {
+        if ('w' === $mode) {
             if ($options->resetSidecars) {
                 $writer->resetSidecars();
             }
@@ -149,7 +147,6 @@ final class JsonlWriter implements JsonlWriterInterface
         return $writer;
     }
 
-
     /**
      * Write a row. Accepts an array or a serializable DTO — pass a value object straight in and
      * the writer serialises it (JsonSerializable::jsonSerialize(), else public props with null
@@ -162,10 +159,10 @@ final class JsonlWriter implements JsonlWriterInterface
         if (\is_object($row)) {
             $row = $row instanceof \JsonSerializable
                 ? (array) $row->jsonSerialize()
-                : \array_filter(\get_object_vars($row), static fn (mixed $v): bool => $v !== null);
+                : \array_filter(\get_object_vars($row), static fn (mixed $v): bool => null !== $v);
         }
 
-        if ($tokenCode !== null) {
+        if (null !== $tokenCode) {
             if (isset($this->index[$tokenCode])) {
                 return;
             }
@@ -173,22 +170,22 @@ final class JsonlWriter implements JsonlWriterInterface
         }
 
         $json = \json_encode($row, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
-        if ($json === false) {
+        if (false === $json) {
             throw new \RuntimeException('JSON encode failed.');
         }
 
-        $line = $json . "\n";
+        $line = $json."\n";
 
         $bytes = $this->gzip
             ? \gzwrite($this->fh, $line)
             : \fwrite($this->fh, $line);
 
-        if ($bytes === false) {
+        if (false === $bytes) {
             throw new \RuntimeException(sprintf('Failed writing to "%s".', $this->filename));
         }
 
         // Accumulate sidecar counters in memory; persist in batches (see self::STATE_FLUSH_ROWS).
-        $this->unsyncedRows++;
+        ++$this->unsyncedRows;
         $this->unsyncedBytes += (int) $bytes;
         if ($this->unsyncedRows >= self::STATE_FLUSH_ROWS) {
             $this->flushState();
@@ -198,7 +195,7 @@ final class JsonlWriter implements JsonlWriterInterface
     /** Persist accumulated row/byte deltas to the sidecar in one write; no-op when nothing is pending. */
     private function flushState(): void
     {
-        if ($this->unsyncedRows === 0 && $this->unsyncedBytes === 0) {
+        if (0 === $this->unsyncedRows && 0 === $this->unsyncedBytes) {
             return;
         }
 
@@ -217,6 +214,7 @@ final class JsonlWriter implements JsonlWriterInterface
     public function state(): \Survos\JsonlBundle\Model\JsonlState
     {
         $this->flushState(); // ensure a deliberate read reflects every row written so far
+
         return $this->stateService->load($this->filename);
     }
 
@@ -274,12 +272,12 @@ final class JsonlWriter implements JsonlWriterInterface
 
     public function __destruct()
     {
-        if (\is_resource($this->fh) || $this->lock !== null) {
+        if (\is_resource($this->fh) || null !== $this->lock) {
             try {
                 $this->close();
             } catch (\Throwable $e) {
                 // Avoid throwing in destructors; log instead.
-                \error_log('JsonlWriter destructor error: ' . $e->getMessage());
+                \error_log('JsonlWriter destructor error: '.$e->getMessage());
             }
         }
     }
@@ -288,14 +286,14 @@ final class JsonlWriter implements JsonlWriterInterface
     {
         // fopen/gzopen modes:
         //  - 'a' (append) or 'w' (truncate)
-        $plainMode = ($this->mode === 'a') ? 'ab' : 'wb';
-        $gzipMode  = $plainMode . $this->compressionLevel;
+        $plainMode = ('a' === $this->mode) ? 'ab' : 'wb';
+        $gzipMode = $plainMode.$this->compressionLevel;
 
         $this->fh = $this->gzip
             ? @\gzopen($this->filename, $gzipMode)
             : @\fopen($this->filename, $plainMode);
 
-        if ($this->fh === false || $this->fh === null) {
+        if (false === $this->fh || null === $this->fh) {
             throw new \RuntimeException(sprintf('Unable to open "%s" for writing (mode=%s).', $this->filename, $this->mode));
         }
     }
@@ -308,34 +306,34 @@ final class JsonlWriter implements JsonlWriterInterface
             @\mkdir($dir, 0o775, true);
         }
 
-        $store   = new FlockStore($dir);
+        $store = new FlockStore($dir);
         $factory = new LockFactory($store);
 
         // Stable, filesystem-safe name derived from the filename.
-        $name = "jsonl_" . \sha1($this->filename);
-        $this->lockFile = \sprintf("%s/sf.%s.%s.lock",
+        $name = 'jsonl_'.\sha1($this->filename);
+        $this->lockFile = \sprintf('%s/sf.%s.%s.lock',
             $dir,
-            \substr(\preg_replace("/[^a-z0-9\._-]+/i", "-", $name), 0, 50),
-            \strtr(\substr(\base64_encode(\hash("sha256", $name, true)), 0, 7), "/", "_")
+            \substr(\preg_replace("/[^a-z0-9\._-]+/i", '-', $name), 0, 50),
+            \strtr(\substr(\base64_encode(\hash('sha256', $name, true)), 0, 7), '/', '_')
         );
 
         $this->lock = $factory->createLock($name);
 
         // Blocking lock; if you want a timeout, change to acquire(true) + retry logic.
         if (!$this->lock->acquire(true)) {
-            throw new \RuntimeException(\sprintf("Unable to acquire lock for \"%s\".", $this->filename));
+            throw new \RuntimeException(\sprintf('Unable to acquire lock for "%s".', $this->filename));
         }
     }
 
     private function releaseLock(): void
     {
-        if ($this->lock !== null) {
+        if (null !== $this->lock) {
             try {
                 $this->lock->release();
             } finally {
                 $this->lock = null;
 
-                if ($this->lockFile !== null && \is_file($this->lockFile)) {
+                if (null !== $this->lockFile && \is_file($this->lockFile)) {
                     @\unlink($this->lockFile);
                 }
 
@@ -349,8 +347,8 @@ final class JsonlWriter implements JsonlWriterInterface
         // Known sidecars/indexes we may have created historically.
         $candidates = [
             $this->indexFile,                 // <file>.idx.json
-            $this->filename . '.sidecar.json',// <file>.sidecar.json
-            $this->filename . '.index.json',  // legacy naming you referenced
+            $this->filename.'.sidecar.json', // <file>.sidecar.json
+            $this->filename.'.index.json',  // legacy naming you referenced
         ];
 
         foreach ($candidates as $path) {
@@ -368,12 +366,14 @@ final class JsonlWriter implements JsonlWriterInterface
     {
         if (!\is_file($this->indexFile)) {
             $this->index = [];
+
             return;
         }
 
         $raw = @\file_get_contents($this->indexFile);
-        if ($raw === false || \trim($raw) === '') {
+        if (false === $raw || '' === \trim($raw)) {
             $this->index = [];
+
             return;
         }
 
@@ -383,12 +383,12 @@ final class JsonlWriter implements JsonlWriterInterface
 
     private function saveIndex(): void
     {
-        if ($this->index === []) {
+        if ([] === $this->index) {
             return;
         }
 
         $json = \json_encode($this->index, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES);
-        if ($json === false) {
+        if (false === $json) {
             throw new \RuntimeException('Failed to encode index JSON');
         }
 
@@ -397,8 +397,8 @@ final class JsonlWriter implements JsonlWriterInterface
             @\mkdir($dir, 0o775, true);
         }
 
-        $tmp = $this->indexFile . '.tmp';
-        if (@\file_put_contents($tmp, $json) === false) {
+        $tmp = $this->indexFile.'.tmp';
+        if (false === @\file_put_contents($tmp, $json)) {
             throw new \RuntimeException(sprintf('Failed writing index tmp file "%s".', $tmp));
         }
 

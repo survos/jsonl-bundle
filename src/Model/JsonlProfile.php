@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 // File: src/Model/JsonlProfile.php
 // jsonl-bundle v0.12
@@ -9,8 +11,8 @@ namespace Survos\JsonlBundle\Model;
 final class JsonlProfile
 {
     /**
-     * @param string[]                    $tags
-     * @param array<string,FieldStats>    $fields
+     * @param string[]                 $tags
+     * @param array<string,FieldStats> $fields
      */
     public function __construct(
         public string $input,
@@ -18,7 +20,8 @@ final class JsonlProfile
         public int $recordCount,
         public array $tags,
         public array $fields = [],
-    ) {}
+    ) {
+    }
 
     public function ensureField(string $name): FieldStats
     {
@@ -67,14 +70,14 @@ final class JsonlProfile
                 if (!is_array($stats)) {
                     continue;
                 }
-                $fields[$name] = FieldStats::fromArray((string)$name, $stats);
+                $fields[$name] = FieldStats::fromArray((string) $name, $stats);
             }
         }
 
         return new self(
-            input: (string)($data['input'] ?? ''),
-            output: (string)($data['output'] ?? ''),
-            recordCount: (int)($data['recordCount'] ?? 0),
+            input: (string) ($data['input'] ?? ''),
+            output: (string) ($data['output'] ?? ''),
+            recordCount: (int) ($data['recordCount'] ?? 0),
             tags: array_values($tags),
             fields: $fields,
         );

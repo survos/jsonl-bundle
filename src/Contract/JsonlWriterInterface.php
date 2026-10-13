@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Contract;
@@ -15,12 +16,12 @@ interface JsonlWriterInterface
      * Open (or create) a JSONL writer for the given path.
      * The file may be plain text (.jsonl) or gzipped (.jsonl.gz).
      *
-     * @param string $filename   Target file path (.jsonl or .jsonl.gz)
+     * @param string $filename Target file path (.jsonl or .jsonl.gz)
      */
     public static function open(
         string $filename,
         string $mode = 'w',
-        ?JsonlWriterOptions $options = null
+        ?JsonlWriterOptions $options = null,
     ): self;
 
     /**

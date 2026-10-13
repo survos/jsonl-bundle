@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Model;
@@ -58,16 +59,16 @@ final readonly class JsonlState implements JsonlStateInterface
         }
 
         $mtime = @\filemtime($this->jsonlPath);
-        $size  = @\filesize($this->jsonlPath);
+        $size = @\filesize($this->jsonlPath);
 
         if (!\is_int($mtime) || !\is_int($size)) {
             return false;
         }
 
         $sMtime = $this->stats->getJsonlMtime();
-        $sSize  = $this->stats->getJsonlSize();
+        $sSize = $this->stats->getJsonlSize();
 
-        if ($sMtime === null || $sSize === null) {
+        if (null === $sMtime || null === $sSize) {
             return false;
         }
 

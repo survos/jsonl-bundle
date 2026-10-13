@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Sqlite;
@@ -71,11 +72,11 @@ final class LegacyProfile
         $jsonTypes = \is_array($r['json_types'] ?? null) ? $r['json_types'] : [];
         $types = [];
         foreach (array_keys($jsonTypes) as $t) {
-            if ($t === 'null') {
+            if ('null' === $t) {
                 continue;
             }
             $mapped = self::TYPE_MAP[(string) $t] ?? null;
-            if ($mapped !== null && !\in_array($mapped, $types, true)) {
+            if (null !== $mapped && !\in_array($mapped, $types, true)) {
                 $types[] = $mapped;
             }
         }
@@ -85,7 +86,7 @@ final class LegacyProfile
         $distinct = (int) ($r['distinct_n'] ?? 0);
         $lenMin = isset($r['len_min']) ? (int) $r['len_min'] : null;
         $lenMax = isset($r['len_max']) ? (int) $r['len_max'] : null;
-        $lenAvg = array_key_exists('len_avg', $r) && $r['len_avg'] !== null ? (float) $r['len_avg'] : null;
+        $lenAvg = array_key_exists('len_avg', $r) && null !== $r['len_avg'] ? (float) $r['len_avg'] : null;
         $heuristics = \is_array($r['heuristics'] ?? null) ? $r['heuristics'] : [];
         $topValues = \is_array($r['top_values'] ?? null) ? $r['top_values'] : [];
         $isComposite = \in_array('array', $types, true) || \in_array('object', $types, true);
@@ -98,7 +99,7 @@ final class LegacyProfile
             'types' => $types,
             'stringLengths' => ['min' => $lenMin, 'max' => $lenMax, 'avg' => $lenAvg],
             'booleanLike' => self::booleanLike($types, $distinct, $topValues),
-            'facetCandidate' => !$isComposite && $distinct > 0 && $distinct <= 64 && ($lenMax === null || $lenMax <= 128),
+            'facetCandidate' => !$isComposite && $distinct > 0 && $distinct <= 64 && (null === $lenMax || $lenMax <= 128),
             'storageHint' => self::storageHint($types),
             'urlLike' => (bool) ($heuristics['urlLike'] ?? false),
             'imageLike' => (bool) ($heuristics['imageLike'] ?? false),
@@ -151,17 +152,17 @@ final class LegacyProfile
     }
 
     /**
-     * @param list<string> $types
+     * @param list<string>                       $types
      * @param list<array{value:mixed,count:int}> $topValues
      */
     private static function booleanLike(array $types, int $distinct, array $topValues): bool
     {
-        if ($distinct === 0 || $distinct > 4) {
+        if (0 === $distinct || $distinct > 4) {
             return false;
         }
         $allowed = ['0', '1', 'true', 'false', 'yes', 'no', 'y', 'n', 'on', 'off'];
         $values = array_map(static fn (array $t): string => strtolower(trim((string) $t['value'])), $topValues);
-        if ($values === []) {
+        if ([] === $values) {
             return $types === ['bool'];
         }
         foreach ($values as $v) {

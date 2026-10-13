@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Command;
@@ -53,6 +54,7 @@ final class JsonlStateCommand
 
         if ($json) {
             $io->writeln(\json_encode($payload, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
+
             return Command::SUCCESS;
         }
 
@@ -66,8 +68,8 @@ final class JsonlStateCommand
             ['Fresh' => $payload['fresh'] ? 'yes' : 'no'],
             ['Started at' => $payload['startedAt'] ?? '(unknown)'],
             ['Updated at' => $payload['updatedAt'] ?? '(unknown)'],
-            ['JSONL mtime (sidecar)' => $payload['jsonl_mtime'] !== null ? (string) $payload['jsonl_mtime'] : '(missing)'],
-            ['JSONL size (sidecar)' => $payload['jsonl_size'] !== null ? (string) $payload['jsonl_size'] : '(missing)'],
+            ['JSONL mtime (sidecar)' => null !== $payload['jsonl_mtime'] ? (string) $payload['jsonl_mtime'] : '(missing)'],
+            ['JSONL size (sidecar)' => null !== $payload['jsonl_size'] ? (string) $payload['jsonl_size'] : '(missing)'],
         );
 
         return Command::SUCCESS;

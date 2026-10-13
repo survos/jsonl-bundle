@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Tests;
@@ -19,9 +20,9 @@ final class JsonlIoTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmpDir = \sys_get_temp_dir() . '/jsonl-bundle-' . \bin2hex(\random_bytes(5));
+        $this->tmpDir = \sys_get_temp_dir().'/jsonl-bundle-'.\bin2hex(\random_bytes(5));
         if (!\mkdir($concurrentDirectory = $this->tmpDir, 0o775, true) && !\is_dir($concurrentDirectory)) {
-            throw new \RuntimeException('Cannot create tmp dir: ' . $this->tmpDir);
+            throw new \RuntimeException('Cannot create tmp dir: '.$this->tmpDir);
         }
     }
 
@@ -37,6 +38,7 @@ final class JsonlIoTest extends TestCase
         }
         if (\is_file($path) || \is_link($path)) {
             \unlink($path);
+
             return;
         }
         $it = new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS);
@@ -54,7 +56,7 @@ final class JsonlIoTest extends TestCase
     #[Test]
     public function writesAndReadsPlainJsonl(): void
     {
-        $file = $this->tmpDir . '/items.jsonl';
+        $file = $this->tmpDir.'/items.jsonl';
         $w = JsonlWriter::open($file); // auto-creates parent dir already exists
         $w->write(['id' => 1, 'name' => 'alpha'], tokenCode: '1');
         $w->write(['id' => 2, 'name' => 'beta'], tokenCode: '2');
@@ -86,7 +88,7 @@ final class JsonlIoTest extends TestCase
             $this->markTestSkipped('zlib not available');
         }
 
-        $file = $this->tmpDir . '/items.jsonl.gz';
+        $file = $this->tmpDir.'/items.jsonl.gz';
         $w = JsonlWriter::open($file);
         $w->write(['id' => 10, 'name' => 'gamma'], tokenCode: '10');
         $w->write(['id' => 11, 'name' => 'delta'], tokenCode: '11');
@@ -112,7 +114,7 @@ final class JsonlIoTest extends TestCase
     #[Test]
     public function startAtLineHintOffsetsKeys(): void
     {
-        $file = $this->tmpDir . '/offset.jsonl';
+        $file = $this->tmpDir.'/offset.jsonl';
         $w = JsonlWriter::open($file);
         $w->write(['n' => 1]);
         $w->write(['n' => 2]);

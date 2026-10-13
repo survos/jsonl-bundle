@@ -1,12 +1,8 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Survos\JsonlBundle\Sqlite;
-
-use InvalidArgumentException;
-use PDO;
-use RuntimeException;
-use Throwable;
 
 /**
  * Per-file SQLite sidecar store (`<file>.db`).
@@ -22,7 +18,7 @@ final class SidecarDb
 {
     public const int SCHEMA_VERSION = 4;
 
-    private ?PDO $pdo = null;
+    private ?\PDO $pdo = null;
 
     public function __construct(
         private readonly string $dbPath,
@@ -52,7 +48,7 @@ final class SidecarDb
     {
         $rows = $this->readRows();
 
-        return ($rows === null || $rows === []) ? null : SidecarMeta::fromRow($rows);
+        return (null === $rows || [] === $rows) ? null : SidecarMeta::fromRow($rows);
     }
 
     /**
@@ -62,7 +58,7 @@ final class SidecarDb
     {
         $rows = $this->readRows();
 
-        return $rows !== null && $rows !== [];
+        return null !== $rows && [] !== $rows;
     }
 
     /**
@@ -81,7 +77,7 @@ final class SidecarDb
                 $stmt->execute(['k' => $key, 'v' => $value]);
             }
             $pdo->commit();
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
@@ -90,7 +86,7 @@ final class SidecarDb
     }
 
     /**
-     * @return array<string, string>|null  null when no DB file exists yet
+     * @return array<string, string>|null null when no DB file exists yet
      */
     private function readRows(): ?array
     {
@@ -101,43 +97,37 @@ final class SidecarDb
         $stmt = $this->pdo(false)->query('SELECT key, value FROM meta');
 
         $map = [];
-        foreach ($stmt->fetchAll(PDO::FETCH_NUM) as $row) {
+        foreach ($stmt->fetchAll(\PDO::FETCH_NUM) as $row) {
             $map[(string) $row[0]] = (string) $row[1];
         }
 
         return $map;
     }
 
-    private function pdo(bool $create): PDO
+    private function pdo(bool $create): \PDO
     {
-        if ($this->pdo instanceof PDO) {
+        if ($this->pdo instanceof \PDO) {
             return $this->pdo;
         }
 
         if (!is_file($this->dbPath) && !$create) {
-            throw new RuntimeException(sprintf('Sidecar DB does not exist: %s', $this->dbPath));
+            throw new \RuntimeException(sprintf('Sidecar DB does not exist: %s', $this->dbPath));
         }
 
         $dir = dirname($this->dbPath);
         if (!is_dir($dir) && !mkdir($dir, 0o775, true) && !is_dir($dir)) {
-            throw new RuntimeException(sprintf('Unable to create directory: %s', $dir));
+            throw new \RuntimeException(sprintf('Unable to create directory: %s', $dir));
         }
 
         try {
-            $pdo = new PDO('sqlite:' . $this->dbPath);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $pdo = new \PDO('sqlite:'.$this->dbPath);
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $pdo->exec('PRAGMA journal_mode = WAL');
             $pdo->exec('PRAGMA busy_timeout = 5000');
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             // SQLite "unable to open database file" (error 14) is opaque — surface the
             // path and the usual culprits instead of a bare PDOException stack trace.
-            throw new RuntimeException(sprintf(
-                'Unable to open sidecar DB %s: %s. Likely causes: too many open files '
-                . '(check `ulimit -n` and for a leaked/competing process), or an '
-                . 'unavailable / read-only directory.',
-                $this->dbPath,
-                $e->getMessage(),
-            ), 0, $e);
+            throw new \RuntimeException(sprintf('Unable to open sidecar DB %s: %s. Likely causes: too many open files (check `ulimit -n` and for a leaked/competing process), or an unavailable / read-only directory.', $this->dbPath, $e->getMessage()), 0, $e);
         }
 
         $this->migrate($pdo);
@@ -145,21 +135,16 @@ final class SidecarDb
         return $this->pdo = $pdo;
     }
 
-    private function migrate(PDO $pdo): void
+    private function migrate(\PDO $pdo): void
     {
         $version = (int) $pdo->query('PRAGMA user_version')->fetchColumn();
 
-        if ($version === self::SCHEMA_VERSION) {
+        if (self::SCHEMA_VERSION === $version) {
             return;
         }
 
         if ($version > self::SCHEMA_VERSION) {
-            throw new RuntimeException(sprintf(
-                'Sidecar DB schema version %d is newer than supported %d at %s',
-                $version,
-                self::SCHEMA_VERSION,
-                $this->dbPath,
-            ));
+            throw new \RuntimeException(sprintf('Sidecar DB schema version %d is newer than supported %d at %s', $version, self::SCHEMA_VERSION, $this->dbPath));
         }
 
         // Stepwise, idempotent upgrades from $version up to SCHEMA_VERSION.
@@ -201,20 +186,20 @@ final class SidecarDb
             );
         }
 
-        if ($version === 3) {
+        if (3 === $version) {
             // array-element stats (count, distinct, avgPerRow, top-N) for is_array
             // fields - folded into the parent field row (ADR 0001 §4).
             $pdo->exec('ALTER TABLE field_stats ADD COLUMN elements TEXT');
         }
 
-        $pdo->exec('PRAGMA user_version = ' . self::SCHEMA_VERSION);
+        $pdo->exec('PRAGMA user_version = '.self::SCHEMA_VERSION);
     }
 
     /**
      * Read-write connection to the sidecar DB (creates + migrates the file).
      * Used by the indexer to build `idx` / staging in the same database.
      */
-    public function connection(): PDO
+    public function connection(): \PDO
     {
         return $this->pdo(true);
     }
@@ -288,7 +273,7 @@ final class SidecarDb
         $exists = $this->pdo(false)
             ->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='_rows'")
             ->fetchColumn();
-        if ($exists === false) {
+        if (false === $exists) {
             return false;
         }
 
@@ -312,9 +297,9 @@ final class SidecarDb
         $pdo->exec('DROP TABLE IF EXISTS _rows');
         foreach (
             $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '\_rows\_%' ESCAPE '\'")
-                ->fetchAll(PDO::FETCH_COLUMN) as $child
+                ->fetchAll(\PDO::FETCH_COLUMN) as $child
         ) {
-            $pdo->exec('DROP TABLE IF EXISTS "' . str_replace('"', '""', (string) $child) . '"');
+            $pdo->exec('DROP TABLE IF EXISTS "'.str_replace('"', '""', (string) $child).'"');
         }
         $pdo->exec('VACUUM');
         // In WAL mode the compaction only reaches the main file after a truncating
@@ -342,7 +327,7 @@ final class SidecarDb
             $row['json_types'] = json_decode((string) ($row['json_types'] ?? '{}'), true) ?: [];
             $row['top_values'] = json_decode((string) ($row['top_values'] ?? '[]'), true) ?: [];
             $row['heuristics'] = json_decode((string) ($row['heuristics'] ?? '{}'), true) ?: [];
-            $row['elements'] = array_key_exists('elements', $row) && $row['elements'] !== null
+            $row['elements'] = array_key_exists('elements', $row) && null !== $row['elements']
                 ? json_decode((string) $row['elements'], true)
                 : null;
             $rows[] = $row;
@@ -367,7 +352,7 @@ final class SidecarDb
         $stmt->execute(['pk' => $pk]);
         $value = $stmt->fetchColumn();
 
-        return $value === false || $value === null ? null : (int) $value;
+        return false === $value || null === $value ? null : (int) $value;
     }
 
     /**
@@ -381,7 +366,7 @@ final class SidecarDb
             return [];
         }
         if (!preg_match('/^[A-Za-z0-9_.]+$/', $field)) {
-            throw new InvalidArgumentException(sprintf('Invalid field name: %s', $field));
+            throw new \InvalidArgumentException(sprintf('Invalid field name: %s', $field));
         }
 
         $sql = sprintf(
@@ -431,11 +416,11 @@ final class SidecarMeta
      */
     public static function fromRow(array $row): self
     {
-        $str = static fn (string $k): ?string => isset($row[$k]) && $row[$k] !== '' ? $row[$k] : null;
-        $int = static fn (string $k): ?int => isset($row[$k]) && $row[$k] !== '' ? (int) $row[$k] : null;
+        $str = static fn (string $k): ?string => isset($row[$k]) && '' !== $row[$k] ? $row[$k] : null;
+        $int = static fn (string $k): ?int => isset($row[$k]) && '' !== $row[$k] ? (int) $row[$k] : null;
 
         $context = [];
-        if (isset($row['context']) && $row['context'] !== '') {
+        if (isset($row['context']) && '' !== $row['context']) {
             $decoded = json_decode($row['context'], true);
             if (is_array($decoded)) {
                 $context = $decoded;
@@ -461,7 +446,7 @@ final class SidecarMeta
     public function toRow(): array
     {
         $context = json_encode($this->context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if ($context === false) {
+        if (false === $context) {
             $context = '[]';
         }
 
@@ -471,8 +456,8 @@ final class SidecarMeta
             'rows' => (string) $this->rows,
             'bytes' => (string) $this->bytes,
             'completed' => $this->completed ? '1' : '0',
-            'jsonlMtime' => $this->jsonlMtime !== null ? (string) $this->jsonlMtime : '',
-            'jsonlSize' => $this->jsonlSize !== null ? (string) $this->jsonlSize : '',
+            'jsonlMtime' => null !== $this->jsonlMtime ? (string) $this->jsonlMtime : '',
+            'jsonlSize' => null !== $this->jsonlSize ? (string) $this->jsonlSize : '',
             'context' => $context,
             'schemaVersion' => (string) $this->schemaVersion,
         ];
