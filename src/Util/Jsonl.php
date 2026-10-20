@@ -64,6 +64,15 @@ final class Jsonl
             return 0;
         }
 
+        if (\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($path)) {
+            $count = 0;
+            foreach (\Survos\JsonlBundle\IO\ArchiveJsonl::lines($path) as $line) {
+                $count += \substr_count($line, "\n");
+            }
+
+            return $count;
+        }
+
         $gzip = self::isGzipPath($path);
         $count = 0;
 

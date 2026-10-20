@@ -34,9 +34,21 @@ class JsonlStateService
     /** @var array<string, SidecarDb> path => db, ordered least- to most-recently-used. */
     private array $dbs = [];
 
+    /** @param array<string, string> $sidecarPaths Explicit external SQLite paths for archive members. */
+    public function __construct(private readonly array $sidecarPaths = [])
+    {
+    }
+
     public function sidecarPath(string $jsonlPath): string
     {
         // Canonical state store is now the SQLite sidecar DB (ADR 0001).
+        if (isset($this->sidecarPaths[$jsonlPath])) {
+            return $this->sidecarPaths[$jsonlPath];
+        }
+        if (\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($jsonlPath)) {
+            throw new \LogicException('Archive state requires an explicit external sidecar path.');
+        }
+
         return $jsonlPath.'.db';
     }
 
@@ -151,7 +163,7 @@ class JsonlStateService
     public function rows(string $jsonlPath): int
     {
         if ($this->exists($jsonlPath)) {
-            return max(0, $this->loadSidecar($jsonlPath)->rows);
+            return \max(0, $this->loadSidecar($jsonlPath)->rows);
         }
 
         return $this->countNewlines($jsonlPath);
@@ -159,48 +171,52 @@ class JsonlStateService
 
     public function countNewlines(string $path): int
     {
-        if (!is_file($path)) {
+        if (!\is_file($path)) {
             return 0;
         }
 
+        if (\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($path)) {
+            return Jsonl::countLines($path);
+        }
+
         if (Jsonl::isGzipPath($path)) {
-            $fh = @gzopen($path, 'rb');
+            $fh = @\gzopen($path, 'rb');
             if (false === $fh) {
                 return 0;
             }
             try {
                 $lines = 0;
-                while (!gzeof($fh)) {
-                    $chunk = gzread($fh, 1024 * 1024);
+                while (!\gzeof($fh)) {
+                    $chunk = \gzread($fh, 1024 * 1024);
                     if (false === $chunk || '' === $chunk) {
                         break;
                     }
-                    $lines += substr_count($chunk, "\n");
+                    $lines += \substr_count($chunk, "\n");
                 }
 
                 return $lines;
             } finally {
-                gzclose($fh);
+                \gzclose($fh);
             }
         }
 
-        $fh = @fopen($path, 'rb');
+        $fh = @\fopen($path, 'rb');
         if (false === $fh) {
             return 0;
         }
         try {
             $lines = 0;
-            while (!feof($fh)) {
-                $chunk = fread($fh, 1024 * 1024);
+            while (!\feof($fh)) {
+                $chunk = \fread($fh, 1024 * 1024);
                 if (false === $chunk || '' === $chunk) {
                     break;
                 }
-                $lines += substr_count($chunk, "\n");
+                $lines += \substr_count($chunk, "\n");
             }
 
             return $lines;
         } finally {
-            fclose($fh);
+            \fclose($fh);
         }
     }
 
@@ -240,8 +256,8 @@ class JsonlStateService
 
         // Evict least-recently-used handles (array head) past the cap, closing each so its
         // file descriptors are released — keeps a huge build from running out of fds.
-        while (count($this->dbs) > self::MAX_OPEN_DBS) {
-            $evicted = array_shift($this->dbs);
+        while (\count($this->dbs) > self::MAX_OPEN_DBS) {
+            $evicted = \array_shift($this->dbs);
             $evicted->close();
         }
 
@@ -287,14 +303,14 @@ class JsonlStateService
 
     private function captureFileFacts(string $jsonlPath, JsonlSidecar $sc, bool $capture): void
     {
-        if (!$capture || !is_file($jsonlPath)) {
+        if (!$capture || !\is_file($jsonlPath)) {
             return;
         }
 
-        $mtime = @filemtime($jsonlPath);
-        $size = @filesize($jsonlPath);
-        $sc->jsonl_mtime = is_int($mtime) ? $mtime : $sc->jsonl_mtime;
-        $sc->jsonl_size = is_int($size) ? $size : $sc->jsonl_size;
+        $mtime = @\filemtime($jsonlPath);
+        $size = @\filesize($jsonlPath);
+        $sc->jsonl_mtime = \is_int($mtime) ? $mtime : $sc->jsonl_mtime;
+        $sc->jsonl_size = \is_int($size) ? $size : $sc->jsonl_size;
     }
 
     /**

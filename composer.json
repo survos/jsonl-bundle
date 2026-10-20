@@ -12,6 +12,7 @@
         "symfony/console": "^7.4||^8.1",
         "psr/log": "^3.0",
         "ext-zlib": "*",
+        "ext-phar": "*",
         "ext-zip": "*",
         "ext-pdo_sqlite": "*",
         "symfony/lock": "^7.4||^8.1"

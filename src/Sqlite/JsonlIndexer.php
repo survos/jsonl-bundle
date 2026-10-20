@@ -6,6 +6,8 @@ namespace Survos\JsonlBundle\Sqlite;
 
 use Survos\JsonlBundle\Util\Jsonl;
 
+use function count;
+
 /**
  * Builds the `<file>.db` sidecar index for a JSONL artifact (ADR 0001, PLAN Phase 2):
  *
@@ -26,25 +28,28 @@ final class JsonlIndexer
      * @param list<string> $pkFields    primary-key field(s); composite keys are joined with ':'
      * @param list<string> $facetFields fields inlined into the covering `attrs`
      */
-    public function index(string $jsonlPath, array $pkFields = ['id'], array $facetFields = [], bool $persist = true): IndexResult
+    public function index(string $jsonlPath, array $pkFields = ['id'], array $facetFields = [], bool $persist = true, ?string $sidecarPath = null): IndexResult
     {
-        if (!is_file($jsonlPath)) {
-            throw new \RuntimeException(sprintf('File not found: %s', $jsonlPath));
+        if (!\is_file($jsonlPath)) {
+            throw new \RuntimeException(\sprintf('File not found: %s', $jsonlPath));
         }
         if ([] === $pkFields) {
             $pkFields = ['id'];
         }
 
-        $db = new SidecarDb($jsonlPath.'.db');
+        if (\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($jsonlPath) && null === $sidecarPath) {
+            throw new \LogicException('Archive indexing requires an external sidecar path.');
+        }
+        $db = new SidecarDb($sidecarPath ?? $jsonlPath.'.db');
         $pdo = $db->connection();
 
         $gzip = Jsonl::isGzipPath($jsonlPath);
         $prev = $db->loadMeta();
-        $currentSize = filesize($jsonlPath);
+        $currentSize = \filesize($jsonlPath);
 
         // Incremental tail-scan needs the persisted `_rows` cache to append to (so it
         // stays a whole-file materialization) AND the existing `idx` to upsert into.
-        $incremental = !$gzip
+        $incremental = !\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($jsonlPath) && !$gzip
             && null !== $prev
             && null !== $prev->jsonlSize
             && false !== $currentSize
@@ -68,7 +73,7 @@ final class JsonlIndexer
         $pkExpr = $this->pkExpr($pkFields);
         $attrsExpr = $this->attrsExpr($facetFields);
         $lineFilter = $incremental ? ' WHERE line_no > '.$startLine : '';
-        $pdo->exec(sprintf(
+        $pdo->exec(\sprintf(
             "INSERT INTO idx(pk, offset, line, attrs)
              SELECT COALESCE(%s, '#' || line_no), offset, line_no, %s
              FROM _rows%s ORDER BY line_no
@@ -80,7 +85,7 @@ final class JsonlIndexer
         ));
 
         foreach ($facetFields as $field) {
-            $pdo->exec(sprintf(
+            $pdo->exec(\sprintf(
                 'CREATE INDEX IF NOT EXISTS %s ON idx(attrs ->> %s)',
                 $this->ident('ix_idx_'.$field),
                 $this->lit($this->jsonPath($field)),
@@ -114,8 +119,8 @@ final class JsonlIndexer
         $meta->updatedAt = $now;
         $meta->rows = $rows;
 
-        $size = filesize($path);
-        $mtime = filemtime($path);
+        $size = \filesize($path);
+        $mtime = \filemtime($path);
         $meta->jsonlSize = false !== $size ? $size : null;
         $meta->jsonlMtime = false !== $mtime ? $mtime : null;
 
@@ -127,12 +132,12 @@ final class JsonlIndexer
      */
     private function pkExpr(array $fields): string
     {
-        $parts = array_map(
-            fn (string $f): string => sprintf('(body ->> %s)', $this->lit($this->jsonPath($f))),
+        $parts = \array_map(
+            fn (string $f): string => \sprintf('(body ->> %s)', $this->lit($this->jsonPath($f))),
             $fields,
         );
 
-        return 1 === count($parts) ? $parts[0] : implode(" || ':' || ", $parts);
+        return 1 === \count($parts) ? $parts[0] : \implode(" || ':' || ", $parts);
     }
 
     /**
@@ -147,16 +152,16 @@ final class JsonlIndexer
         $args = [];
         foreach ($fields as $f) {
             $args[] = $this->lit($f);
-            $args[] = sprintf('body ->> %s', $this->lit($this->jsonPath($f)));
+            $args[] = \sprintf('body ->> %s', $this->lit($this->jsonPath($f)));
         }
 
-        return 'json_object('.implode(', ', $args).')';
+        return 'json_object('.\implode(', ', $args).')';
     }
 
     private function jsonPath(string $field): string
     {
-        if (!preg_match('/^[A-Za-z0-9_.]+$/', $field)) {
-            throw new \InvalidArgumentException(sprintf('Invalid field name: %s', $field));
+        if (!\preg_match('/^[A-Za-z0-9_.]+$/', $field)) {
+            throw new \InvalidArgumentException(\sprintf('Invalid field name: %s', $field));
         }
 
         return '$.'.$field;
@@ -164,12 +169,12 @@ final class JsonlIndexer
 
     private function lit(string $s): string
     {
-        return "'".str_replace("'", "''", $s)."'";
+        return "'".\str_replace("'", "''", $s)."'";
     }
 
     private function ident(string $s): string
     {
-        return '"'.str_replace('"', '""', $s).'"';
+        return '"'.\str_replace('"', '""', $s).'"';
     }
 }
 

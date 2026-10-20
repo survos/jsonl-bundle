@@ -10,6 +10,8 @@ use Survos\JsonlBundle\Service\JsonlStateService;
 use Survos\JsonlBundle\Sqlite\SidecarDb;
 use Survos\JsonlBundle\Util\Jsonl;
 
+use function gzseek;
+
 /**
  * Streaming JSONL reader that yields each line decoded as an associative array.
  *
@@ -34,19 +36,43 @@ use Survos\JsonlBundle\Util\Jsonl;
 final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInterface, \IteratorAggregate
 {
     private ?array $tokenIndex = null;
+    private ?string $archiveCacheBase = null;
 
     public function __construct(
         private readonly string $path,
         private readonly int $startAtLine = 1,
+        private readonly ?string $sidecarDirectory = null,
     ) {
         if ($this->startAtLine < 1) {
             throw new \InvalidArgumentException('startAtLine must be >= 1');
         }
     }
 
-    public static function open(string $filename): self
+    public static function open(string $filename, ?string $sidecarDirectory = null): self
     {
-        return new self(Jsonl::resolvePath($filename));
+        return new self(Jsonl::resolvePath($filename), sidecarDirectory: $sidecarDirectory);
+    }
+
+    public static function openArchive(string $archive, string $member, ?string $sidecarDirectory = null): self
+    {
+        return self::open(ArchiveJsonl::path($archive, $member), $sidecarDirectory);
+    }
+
+    public function sidecarPath(): string
+    {
+        return $this->sidecarBase().'.db';
+    }
+
+    private function sidecarBase(): string
+    {
+        if (!ArchiveJsonl::isPath($this->path)) {
+            return $this->path;
+        }
+        if (null === $this->sidecarDirectory) {
+            throw new \LogicException('Archive state and indexes require an explicit sidecar directory.');
+        }
+
+        return $this->archiveCacheBase ??= ArchiveJsonl::cacheBase($this->path, $this->sidecarDirectory);
     }
 
     public function path(): string
@@ -56,14 +82,14 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
 
     public function state(?JsonlStateService $state = null): JsonlState
     {
-        $state ??= new JsonlStateService();
+        $state ??= $this->stateService();
 
         return $state->load($this->path);
     }
 
     public function stateService(): JsonlStateService
     {
-        return new JsonlStateService();
+        return new JsonlStateService([$this->path => $this->sidecarPath()]);
     }
 
     /**
@@ -86,19 +112,19 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
      */
     public function containsToken(string $tokenCode): bool
     {
-        $idx = $this->path.'.idx.json';
+        $idx = $this->sidecarBase().'.idx.json';
 
-        if (!is_file($idx)) {
+        if (!\is_file($idx)) {
             return false;
         }
 
         if (null === $this->tokenIndex) {
-            $raw = @file_get_contents($idx);
-            if (false === $raw || '' === trim($raw)) {
+            $raw = @\file_get_contents($idx);
+            if (false === $raw || '' === \trim($raw)) {
                 $this->tokenIndex = [];
             } else {
-                $decoded = json_decode($raw, true);
-                $this->tokenIndex = is_array($decoded) ? $decoded : [];
+                $decoded = \json_decode($raw, true);
+                $this->tokenIndex = \is_array($decoded) ? $decoded : [];
             }
         }
 
@@ -117,34 +143,57 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
      */
     public function get(string $pk): ?array
     {
-        $offset = (new SidecarDb($this->path.'.db'))->lookupOffset($pk);
+        $db = new SidecarDb($this->sidecarPath());
+        $offset = $db->lookupOffset($pk);
         if (null === $offset) {
+            return null;
+        }
+
+        if (ArchiveJsonl::isPath($this->path)) {
+            if ($db->hasCache()) {
+                $query = $db->connection()->prepare('SELECT _rows.body FROM idx JOIN _rows ON _rows.line_no = idx.line WHERE idx.pk = :pk');
+                $query->execute(['pk' => $pk]);
+                $body = $query->fetchColumn();
+                if (false !== $body) {
+                    $decoded = \json_decode($body, true);
+
+                    return \is_array($decoded) ? $decoded : null;
+                }
+            }
+            foreach (ArchiveJsonl::lines($this->path) as $position => $body) {
+                if ($position === $offset) {
+                    $decoded = \json_decode(\trim($body), true);
+
+                    return \is_array($decoded) ? $decoded : null;
+                }
+            }
+
             return null;
         }
 
         $gzip = Jsonl::isGzipPath($this->path);
 
         if ($gzip) {
-            $handle = gzopen($this->path, 'rb');
+            $handle = \gzopen($this->path, 'rb');
             if (false === $handle) {
                 return null;
             }
             try {
-                gzseek($handle, $offset);
-                $line = gzgets($handle);
+                \gzseek($handle, $offset);
+                $line = \gzgets($handle);
             } finally {
-                gzclose($handle);
+                \gzclose($handle);
             }
         } else {
-            $handle = fopen($this->path, 'rb');
+            $handle = \fopen($this->path, 'rb');
             if (false === $handle) {
                 return null;
             }
             try {
-                fseek($handle, $offset);
-                $line = fgets($handle);
+                \fseek($handle, $offset);
+                $line = \fgets($handle);
             } finally {
-                fclose($handle);
+                \fclose($handle);
             }
         }
 
@@ -152,9 +201,9 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
             return null;
         }
 
-        $decoded = json_decode(trim($line), true);
+        $decoded = \json_decode(\trim($line), true);
 
-        return is_array($decoded) ? $decoded : null;
+        return \is_array($decoded) ? $decoded : null;
     }
 
     /**
@@ -167,59 +216,70 @@ final class JsonlReader implements JsonlReaderInterface, ContractJsonlReaderInte
         $gzip = Jsonl::isGzipPath($this->path);
         $key = $this->startAtLine;
 
+        if (ArchiveJsonl::isPath($this->path)) {
+            foreach (ArchiveJsonl::lines($this->path) as $line) {
+                $decoded = \json_decode(\trim($line), true);
+                if (\is_array($decoded)) {
+                    yield $key++ => $decoded;
+                }
+            }
+
+            return;
+        }
+
         if ($gzip) {
-            $handle = @gzopen($this->path, 'rb');
+            $handle = @\gzopen($this->path, 'rb');
             if (false === $handle) {
-                throw new \RuntimeException(sprintf('Unable to open gzipped JSONL file "%s" for reading.', $this->path));
+                throw new \RuntimeException(\sprintf('Unable to open gzipped JSONL file "%s" for reading.', $this->path));
             }
 
             try {
-                while (!gzeof($handle)) {
-                    $line = gzgets($handle);
+                while (!\gzeof($handle)) {
+                    $line = \gzgets($handle);
                     if (false === $line) {
                         break;
                     }
 
-                    $line = trim($line);
+                    $line = \trim($line);
                     if ('' === $line) {
                         continue;
                     }
 
-                    $decoded = json_decode($line, true);
-                    if (!is_array($decoded)) {
+                    $decoded = \json_decode($line, true);
+                    if (!\is_array($decoded)) {
                         continue;
                     }
 
                     yield $key++ => $decoded;
                 }
             } finally {
-                gzclose($handle);
+                \gzclose($handle);
             }
 
             return;
         }
 
-        $handle = @fopen($this->path, 'rb');
+        $handle = @\fopen($this->path, 'rb');
         if (false === $handle) {
-            throw new \RuntimeException(sprintf('Unable to open JSONL file "%s" for reading.', $this->path));
+            throw new \RuntimeException(\sprintf('Unable to open JSONL file "%s" for reading.', $this->path));
         }
 
         try {
-            while (($line = fgets($handle)) !== false) {
-                $line = trim($line);
+            while (($line = \fgets($handle)) !== false) {
+                $line = \trim($line);
                 if ('' === $line) {
                     continue;
                 }
 
-                $decoded = json_decode($line, true);
-                if (!is_array($decoded)) {
+                $decoded = \json_decode($line, true);
+                if (!\is_array($decoded)) {
                     continue;
                 }
 
                 yield $key++ => $decoded;
             }
         } finally {
-            fclose($handle);
+            \fclose($handle);
         }
     }
 }

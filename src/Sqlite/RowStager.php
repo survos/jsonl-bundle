@@ -31,50 +31,57 @@ final class RowStager
 
         $pdo->beginTransaction();
         try {
-            if ($gzip) {
-                $fh = gzopen($path, 'rb');
+            if (\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($path)) {
+                foreach (\Survos\JsonlBundle\IO\ArchiveJsonl::lines($path) as $offset => $raw) {
+                    $body = \trim($raw);
+                    if ('' !== $body) {
+                        $stmt->execute(['l' => ++$line, 'o' => $offset, 'b' => $body]);
+                    }
+                }
+            } elseif ($gzip) {
+                $fh = \gzopen($path, 'rb');
                 if (false === $fh) {
-                    throw new \RuntimeException(sprintf('Unable to open %s', $path));
+                    throw new \RuntimeException(\sprintf('Unable to open %s', $path));
                 }
                 try {
-                    while (!gzeof($fh)) {
-                        $offset = gztell($fh);
-                        $raw = gzgets($fh);
+                    while (!\gzeof($fh)) {
+                        $offset = \gztell($fh);
+                        $raw = \gzgets($fh);
                         if (false === $raw) {
                             break;
                         }
-                        $body = trim($raw);
+                        $body = \trim($raw);
                         if ('' === $body) {
                             continue;
                         }
                         $stmt->execute(['l' => ++$line, 'o' => $offset, 'b' => $body]);
                     }
                 } finally {
-                    gzclose($fh);
+                    \gzclose($fh);
                 }
             } else {
-                $fh = fopen($path, 'rb');
+                $fh = \fopen($path, 'rb');
                 if (false === $fh) {
-                    throw new \RuntimeException(sprintf('Unable to open %s', $path));
+                    throw new \RuntimeException(\sprintf('Unable to open %s', $path));
                 }
                 try {
                     if ($startOffset > 0) {
-                        fseek($fh, $startOffset);
+                        \fseek($fh, $startOffset);
                     }
                     while (true) {
-                        $offset = ftell($fh);
-                        $raw = fgets($fh);
+                        $offset = \ftell($fh);
+                        $raw = \fgets($fh);
                         if (false === $raw) {
                             break;
                         }
-                        $body = trim($raw);
+                        $body = \trim($raw);
                         if ('' === $body) {
                             continue;
                         }
                         $stmt->execute(['l' => ++$line, 'o' => $offset, 'b' => $body]);
                     }
                 } finally {
-                    fclose($fh);
+                    \fclose($fh);
                 }
             }
 

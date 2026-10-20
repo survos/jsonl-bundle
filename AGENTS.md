@@ -77,43 +77,17 @@ declare(strict_types=1);
 
 ---
 
-## Global Function Usage (IMPORTANT)
+## Global Function Usage
 
-### Required Style
+Follow the monorepo's `.php-cs-fixer.dist.php` configuration. It is the canonical
+style for this package and the pre-commit check. Do not override its function
+qualification rules with a separate package or temporary configuration.
 
-When using PHP built-in functions inside a namespace, **import them explicitly**:
+Run the monorepo formatter on changed files. Symfony's rules may qualify built-in
+function calls with a leading backslash and retain imports for other functions.
+Both are intentional formatter output.
 
-```php
-use function json_encode;
-use function json_decode;
-use function sprintf;
-use function fopen;
-use function fwrite;
-use function fclose;
-use function gzopen;
-use function gzwrite;
-use function gzclose;
-use function file_get_contents;
-use function file_put_contents;
-use function rename;
-use function unlink;
-use function mkdir;
-use function dirname;
-use function is_dir;
-use function is_file;
-use function sha1;
-use function strtolower;
-use function trim;
-use function in_array;
-```
-
-### Forbidden Patterns
-
-- ❌ Leading backslashes on global functions  
-  (`\json_encode()`, `\fopen()`, etc.)
-- ❌ The `@` error suppression operator
-
-All failures must be handled **explicitly**.
+Do not introduce the `@` error suppression operator. Handle failures explicitly.
 
 ---
 
@@ -221,7 +195,7 @@ Agents working on this repository **MUST**:
 - Emit plain text only
 - Avoid structured or reasoning-based output
 - Follow PHP 8.4 / Symfony 7.3 idioms
-- Use `use function` imports for built-ins
+- Follow the monorepo formatter for built-in function qualification
 - Never use `@` error suppression
 - Make minimal, reviewable changes
 

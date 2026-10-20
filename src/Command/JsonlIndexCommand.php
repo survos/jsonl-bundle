@@ -32,9 +32,12 @@ final class JsonlIndexCommand
 
         #[Option('Fields to inline as covering facets in idx.attrs, comma-separated')]
         string $facet = '',
+
+        #[Option('Existing local directory for archive-member SQLite sidecars')]
+        ?string $sidecarDir = null,
     ): int {
-        if (!is_file($path)) {
-            $io->error(sprintf('File not found: %s', $path));
+        if (!\is_file($path)) {
+            $io->error(\sprintf('File not found: %s', $path));
 
             return Command::INVALID;
         }
@@ -42,17 +45,19 @@ final class JsonlIndexCommand
         $pkFields = $this->splitList($pk) ?: ['id'];
         $facetFields = $this->splitList($facet);
 
-        $dir = \dirname($path) ?: '.';
-        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_index_'.sha1($path));
+        $reader = \Survos\JsonlBundle\IO\JsonlReader::open($path, $sidecarDir);
+        $sidecar = $reader->sidecarPath();
+        $dir = \dirname($sidecar);
+        $lock = (new LockFactory(new FlockStore($dir)))->createLock('jsonl_index_'.\sha1($path));
         $lock->acquire(true);
 
         try {
-            $result = $this->indexer->index($path, $pkFields, $facetFields);
+            $result = $this->indexer->index($path, $pkFields, $facetFields, sidecarPath: $sidecar);
         } finally {
             $lock->release();
         }
 
-        $io->success(sprintf(
+        $io->success(\sprintf(
             'Indexed %s — %d rows, %d keys, %d invalid skipped (%s).',
             $path,
             $result->rows,
@@ -69,8 +74,8 @@ final class JsonlIndexCommand
      */
     private function splitList(string $csv): array
     {
-        return array_values(array_filter(
-            array_map('trim', explode(',', $csv)),
+        return \array_values(\array_filter(
+            \array_map('trim', \explode(',', $csv)),
             static fn (string $s): bool => '' !== $s,
         ));
     }

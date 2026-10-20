@@ -714,3 +714,50 @@ For applications with an optional-compression policy, use
 path is absent; `Jsonl::files()` discovers both formats without duplicate cores.
 When both exist, the plain file wins so a new normalization cannot reuse an older
 compressed copy.
+
+### Reading JSONL inside a local archive
+
+The reader can stream plain or gzipped JSONL members from a local TAR (including
+an uncompressed BagIt TAR), without extracting its payload. Concatenated gzip
+members are supported; byte offsets refer to the combined uncompressed stream.
+BagIt manifests and archive integrity must be verified by the application before
+using the input. This reader does not download S3 objects or validate BagIt.
+
+```php
+$reader = JsonlReader::openArchive('/cache/raw.bagit.tar', 'data/raw/obj.jsonl.gz');
+foreach ($reader as $row) {
+    // Same decoded rows as an ordinary local JSONL file.
+}
+```
+
+Existing `phar:///absolute/raw.bagit.tar/data/raw/obj.jsonl.gz` paths also work
+with `JsonlReader::open()`. Ordinary file reads retain their existing behavior.
+
+State and indexes remain writable local SQLite sidecars. Pass an existing cache
+directory explicitly; the library does not create application directories. The
+sidecar filename combines the archive SHA-256 and member-path hash, so distinct
+members and archive versions cannot accidentally reuse each other's indexes.
+Reopen the reader after replacing an archive; archive inputs are immutable during
+an open reader's lifetime.
+
+```php
+$reader = JsonlReader::openArchive($archive, 'data/raw/obj.jsonl.gz', $cacheDir);
+(new JsonlIndexer())->index($reader->path(), sidecarPath: $reader->sidecarPath());
+$row = $reader->get('record-id'); // Uses cached SQLite row bodies when present.
+$state = $reader->state();
+```
+
+The optional persisted row cache makes lookups independent of gzip seeking. If
+that cache is removed, the index still locates the uncompressed offset, but gzip
+requires a sequential scan to that offset. Sequential iteration always reads the
+archive payload, not the sidecar. Archive state/index access without an explicit
+local cache directory fails clearly rather than trying to write into the TAR.
+
+```sh
+bin/console jsonl:index 'phar:///cache/raw.bagit.tar/data/raw/obj.jsonl.gz' \
+  --sidecar-dir=/cache/indexes --pk=id
+```
+
+This adds archive support to the reader, line counters, and index builder. Other
+commands that independently open files or manage sidecars need to opt into these
+APIs; archive support is not a claim that every command already accepts archives.
