@@ -10,7 +10,7 @@ final class Jsonl
     /** A new plain write wins over an older compressed copy during a rebuild. */
     public static function resolvePath(string $path): string
     {
-        return \is_file($path) || self::isGzipPath($path) ? $path : (\is_file($path.'.gz') ? $path.'.gz' : $path);
+        return \Survos\JsonlBundle\IO\ArchiveJsonl::isPath($path) || \is_file($path) || self::isGzipPath($path) ? $path : (\is_file($path.'.gz') ? $path.'.gz' : $path);
     }
 
     /** @return list<string> One stream per stem, including gzip-only streams. */
@@ -60,10 +60,6 @@ final class Jsonl
     public static function countLines(string $path): int
     {
         $path = self::resolvePath($path);
-        if (!\is_file($path)) {
-            return 0;
-        }
-
         if (\Survos\JsonlBundle\IO\ArchiveJsonl::isPath($path)) {
             $count = 0;
             foreach (\Survos\JsonlBundle\IO\ArchiveJsonl::lines($path) as $line) {
@@ -71,6 +67,10 @@ final class Jsonl
             }
 
             return $count;
+        }
+
+        if (!\is_file($path)) {
+            return 0;
         }
 
         $gzip = self::isGzipPath($path);
