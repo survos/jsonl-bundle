@@ -348,6 +348,33 @@ This is especially useful in multi-stage pipelines.
 
 ---
 
+### The Lifecycle Log
+
+Besides the current counters, the sidecar keeps an append-only log of what happened to the file
+(`events` table, one row per event, oldest first):
+
+| Event | Written when | Detail |
+| --- | --- | --- |
+| `opened` | a writer opens a file that had no earlier state | `mode`, `compressionLevel`, `pid` |
+| `reopened` | a writer opens a file that already had state, content or a log (append, or a truncating rewrite) | the same, plus `previous` (`rows`, `bytes`, `completed`, `jsonlSize` as they were) |
+| `completed` | `markComplete()` / `finish()` | `rows` |
+| `closed` | the file handle is closed | `rows` (lifetime total), `sessionRows`, `completed`, `jsonlSize`, `seconds` |
+
+`closed` is written after the gzip stream is closed, so the `jsonl_size` / `jsonl_mtime` the sidecar
+keeps are those of the finished file. `close()` alone does not mark a file complete; `finish()` does.
+A run that died shows an `opened` or `reopened` with no `closed` after it. A truncating open resets the
+counters but keeps the log.
+
+```php
+$events = (new JsonlStateService())->events('data/products.jsonl.gz');
+```
+
+```bash
+bin/console jsonl:state data/products.jsonl.gz --events
+```
+
+---
+
 ## CLI Utilities
 
 JsonlBundle ships with CLI tooling to inspect files *without writing code*.

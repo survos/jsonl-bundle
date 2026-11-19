@@ -16,7 +16,7 @@ namespace Survos\JsonlBundle\Sqlite;
  */
 final class SidecarDb
 {
-    public const int SCHEMA_VERSION = 4;
+    public const int SCHEMA_VERSION = 5;
 
     private ?\PDO $pdo = null;
 
@@ -192,7 +192,56 @@ final class SidecarDb
             $pdo->exec('ALTER TABLE field_stats ADD COLUMN elements TEXT');
         }
 
+        if ($version < 5) {
+            // Append-only lifecycle log: opened, reopened, completed, closed (see JsonlWriter).
+            // Survives reset() of the meta rows, so a rewritten file keeps its history.
+            $pdo->exec(
+                'CREATE TABLE IF NOT EXISTS events (
+                    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+                    at     TEXT NOT NULL,
+                    event  TEXT NOT NULL,
+                    detail TEXT
+                )'
+            );
+        }
+
         $pdo->exec('PRAGMA user_version = '.self::SCHEMA_VERSION);
+    }
+
+    /**
+     * Append one lifecycle event. Events are never updated or deleted by the writer.
+     *
+     * @param array<string,mixed> $detail
+     */
+    public function appendEvent(string $event, array $detail = []): void
+    {
+        $stmt = $this->pdo(true)->prepare('INSERT INTO events(at, event, detail) VALUES(:at, :event, :detail)');
+        $stmt->execute([
+            'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            'event' => $event,
+            'detail' => [] === $detail ? null : \json_encode($detail, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES),
+        ]);
+    }
+
+    /**
+     * The lifecycle log, oldest first; empty when there is no sidecar DB yet.
+     *
+     * @return list<array{id: int, at: string, event: string, detail: array<string,mixed>}>
+     */
+    public function loadEvents(): array
+    {
+        if (!is_file($this->dbPath)) {
+            return [];
+        }
+
+        $rows = $this->pdo(false)->query('SELECT id, at, event, detail FROM events ORDER BY id')->fetchAll(\PDO::FETCH_ASSOC);
+
+        return array_map(static fn (array $row): array => [
+            'id' => (int) $row['id'],
+            'at' => (string) $row['at'],
+            'event' => (string) $row['event'],
+            'detail' => null === $row['detail'] ? [] : (array) \json_decode((string) $row['detail'], true, 512, \JSON_THROW_ON_ERROR),
+        ], $rows);
     }
 
     /**

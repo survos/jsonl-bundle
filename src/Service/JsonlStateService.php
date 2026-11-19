@@ -160,6 +160,26 @@ class JsonlStateService
         return $sc;
     }
 
+    /**
+     * Append a lifecycle event (opened, reopened, completed, closed, ...) to the file's sidecar log.
+     *
+     * @param array<string,mixed> $detail
+     */
+    public function recordEvent(string $jsonlPath, string $event, array $detail = []): void
+    {
+        $this->sidecarDb($jsonlPath)->appendEvent($event, $detail);
+    }
+
+    /**
+     * The file's lifecycle log, oldest first.
+     *
+     * @return list<array{id: int, at: string, event: string, detail: array<string,mixed>}>
+     */
+    public function events(string $jsonlPath): array
+    {
+        return $this->sidecarDb($jsonlPath)->loadEvents();
+    }
+
     public function rows(string $jsonlPath): int
     {
         if ($this->exists($jsonlPath)) {

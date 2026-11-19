@@ -79,6 +79,10 @@ final class JsonlWriter implements JsonlWriterInterface
     private int $unsyncedRows = 0;
     private int $unsyncedBytes = 0;
 
+    /** Rows written by this writer instance (not the file's lifetime total), for the sidecar's `closed` event. */
+    private int $sessionRows = 0;
+    private float $openedAt = 0.0;
+
     public function __construct(string $filename)
     {
         $this->filename = $filename;
@@ -132,6 +136,10 @@ final class JsonlWriter implements JsonlWriterInterface
             $writer->acquireLock();
         }
 
+        // What the file was before this writer touched it, for the lifecycle log. Must be read
+        // before a 'w' open resets the sidecar.
+        $previous = $writer->previousState();
+
         if ('w' === $mode) {
             if ($options->resetSidecars) {
                 $writer->resetSidecars();
@@ -143,6 +151,12 @@ final class JsonlWriter implements JsonlWriterInterface
 
         $writer->openHandle();
         $writer->stateService->touch($filename, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
+        $writer->openedAt = \microtime(true);
+        $writer->stateService->recordEvent($filename, null === $previous ? 'opened' : 'reopened', [
+            'mode' => $mode,
+            'compressionLevel' => $compressionLevel,
+            'pid' => \getmypid(),
+        ] + (null === $previous ? [] : ['previous' => $previous]));
 
         return $writer;
     }
@@ -185,6 +199,7 @@ final class JsonlWriter implements JsonlWriterInterface
         }
 
         // Accumulate sidecar counters in memory; persist in batches (see self::STATE_FLUSH_ROWS).
+        ++$this->sessionRows;
         ++$this->unsyncedRows;
         $this->unsyncedBytes += (int) $bytes;
         if ($this->unsyncedRows >= self::STATE_FLUSH_ROWS) {
@@ -232,7 +247,8 @@ final class JsonlWriter implements JsonlWriterInterface
     public function markComplete(): void
     {
         $this->flushState(); // land the tail of un-persisted rows before the completed snapshot
-        $this->stateService->markComplete($this->filename, captureFileFacts: true);
+        $sidecar = $this->stateService->markComplete($this->filename, captureFileFacts: true);
+        $this->stateService->recordEvent($this->filename, 'completed', ['rows' => $sidecar->rows]);
     }
 
     public function finish(bool $markComplete = true): JsonlWriterResult
@@ -258,13 +274,28 @@ final class JsonlWriter implements JsonlWriterInterface
         // Persist token index only if it was used.
         $this->saveIndex();
 
-        if (\is_resource($this->fh)) {
+        $wasOpen = \is_resource($this->fh);
+        if ($wasOpen) {
             if ($this->gzip) {
                 \gzclose($this->fh);
             } else {
                 \fclose($this->fh);
             }
             $this->fh = null;
+        }
+
+        if ($wasOpen) {
+            // Only now is the file final (a gzip stream is not flushed until it is closed), so the
+            // size and mtime the sidecar keeps are taken here, and the close is logged. A run that
+            // died leaves `opened` with no `closed` after it.
+            $sidecar = $this->stateService->touch($this->filename, rowsDelta: 0, bytesDelta: 0, captureFileFacts: true);
+            $this->stateService->recordEvent($this->filename, 'closed', [
+                'rows' => $sidecar->rows,
+                'sessionRows' => $this->sessionRows,
+                'completed' => $sidecar->completed,
+                'jsonlSize' => $sidecar->jsonl_size,
+                'seconds' => \round(\microtime(true) - $this->openedAt, 3),
+            ]);
         }
 
         $this->releaseLock();
@@ -340,6 +371,30 @@ final class JsonlWriter implements JsonlWriterInterface
                 $this->lockFile = null;
             }
         }
+    }
+
+    /**
+     * What the file held before this writer opened it, or null for a file never written (no sidecar
+     * state, no lifecycle log and no content).
+     *
+     * @return array{rows: ?int, bytes: ?int, completed: ?bool, jsonlSize: ?int}|null
+     */
+    private function previousState(): ?array
+    {
+        $size = \is_file($this->filename) ? \filesize($this->filename) : false;
+        if ($this->stateService->exists($this->filename)) {
+            $sidecar = $this->stateService->loadSidecar($this->filename);
+
+            return ['rows' => $sidecar->rows, 'bytes' => $sidecar->bytes, 'completed' => $sidecar->completed, 'jsonlSize' => \is_int($size) ? $size : null];
+        }
+        if ([] !== $this->stateService->events($this->filename)) {
+            return ['rows' => null, 'bytes' => null, 'completed' => null, 'jsonlSize' => \is_int($size) ? $size : null];
+        }
+        if (\is_int($size) && $size > 0) {
+            return ['rows' => null, 'bytes' => null, 'completed' => null, 'jsonlSize' => $size];
+        }
+
+        return null;
     }
 
     private function resetSidecars(): void

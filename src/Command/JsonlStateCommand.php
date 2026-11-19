@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Survos\JsonlBundle\Command;
 
 use Survos\JsonlBundle\Service\JsonlStateRepository;
+use Survos\JsonlBundle\Service\JsonlStateService;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
@@ -16,6 +17,7 @@ final class JsonlStateCommand
 {
     public function __construct(
         private readonly JsonlStateRepository $repo = new JsonlStateRepository(),
+        private readonly JsonlStateService $service = new JsonlStateService(),
     ) {
     }
 
@@ -30,6 +32,9 @@ final class JsonlStateCommand
 
         #[Option('Emit machine-readable JSON.', shortcut: 'j')]
         bool $json = false,
+
+        #[Option('Also show the lifecycle log (opened, reopened, completed, closed) with timestamps.')]
+        bool $events = false,
     ): int {
         if ($ensure) {
             $state = $this->repo->ensure($path);
@@ -52,6 +57,11 @@ final class JsonlStateCommand
             'fresh' => $state->isFresh(),
         ];
 
+        $log = $events ? $this->service->events($path) : [];
+        if ($events) {
+            $payload['events'] = $log;
+        }
+
         if ($json) {
             $io->writeln(\json_encode($payload, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
 
@@ -71,6 +81,17 @@ final class JsonlStateCommand
             ['JSONL mtime (sidecar)' => null !== $payload['jsonl_mtime'] ? (string) $payload['jsonl_mtime'] : '(missing)'],
             ['JSONL size (sidecar)' => null !== $payload['jsonl_size'] ? (string) $payload['jsonl_size'] : '(missing)'],
         );
+
+        if ($events) {
+            $io->section('Lifecycle');
+            $io->table(
+                ['At', 'Event', 'Detail'],
+                [] === $log ? [['(none recorded)', '', '']] : array_map(
+                    static fn (array $e): array => [$e['at'], $e['event'], [] === $e['detail'] ? '' : \json_encode($e['detail'], \JSON_UNESCAPED_SLASHES)],
+                    $log,
+                ),
+            );
+        }
 
         return Command::SUCCESS;
     }
