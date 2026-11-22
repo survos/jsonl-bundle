@@ -34,6 +34,11 @@
     "extra": {
         "symfony": {
             "bundle": "Survos\\JsonlBundle\\SurvosJsonlBundle"
+        },
+        "ai-mate": {
+            "skills": [
+                "skills"
+            ]
         }
     },
     "scripts": {
@@ -45,5 +50,13 @@
         "psr-4": {
             "Survos\\JsonlBundle\\Tests\\": "tests/"
         }
-    }
+    },
+    "keywords": [
+        "jsonl",
+        "ndjson",
+        "json-lines",
+        "streaming",
+        "gzip",
+        "resumable"
+    ]
 }
